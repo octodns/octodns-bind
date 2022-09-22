@@ -1,11 +1,3 @@
-## TODO: v0.0.1 - 20??-??-?? - Moving
+## v0.0.1 - 2022-??-?? - In the beginning
 
-#### Nothworthy Changes
-
-* Initial extraction of BindProvider from octoDNS core
-
-TODO: anything else
-
-#### Stuff
-
-TODO: anything else
+* Initial extraction of octodns.axfr.* from octoDNS core

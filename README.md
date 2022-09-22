@@ -1,15 +1,13 @@
-TODO: Review this README and add or modify as necessary.
+## RFC compliant (Bind) provider for octoDNS provider for octoDNS
 
-## RFC complaint (Bind) provider for octoDNS provider for octoDNS
-
-An [octoDNS](https://github.com/octodns/octodns/) provider that targets [RFC complaint (Bind) provider for octoDNS](https://github.com/octodns/octodns-bind).
+An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Bind and other standards compliant servers](https://github.com/octodns/octodns-bind).
 
 ### Installation
 
 #### Command line
 
 ```
-pip install octodns_bind
+pip install octodns-bind
 ```
 
 #### requirements.txt/setup.py
@@ -20,8 +18,8 @@ Pinning specific versions or SHAs is recommended to avoid unplanned upgrades.
 
 ```
 # Start with the latest versions and don't just copy what's here
-octodns==0.9.14
-octodns_bind==0.0.1
+octodns==0.9.20
+octodns-bind==0.0.1
 ```
 
 ##### SHAs
@@ -34,25 +32,104 @@ octodns_bind==0.0.1
 
 ### Configuration
 
+#### ZoneFileSource
+
+A source that reads DNS records from zone files in a local directory.
+
 ```yaml
 providers:
-  bind:
-    class: octodns_bind.BindProvider
-    # TODO
+  zonefile:
+      class: octodns_bind.ZoneFileSource
+      # The directory holding the zone files
+      # Filenames should match zone name (eg. example.com.)
+      # with optional extension specified with file_extension
+      directory: ./zonefiles
+      # File extension on zone files
+      # Appended to zone name to locate file
+      # (optional, default None)
+      file_extension: zone
+      # Should sanity checks of the origin node be done
+      # (optional, default true)
+      check_origin: false
 ```
+
+#### AxfrSource
+
+A source that support the AXFR protocol
+
+```yaml
+providers:
+  axfr:
+      class: octodns_bind.AxfrSource
+      # The address of nameserver to perform zone transfer against
+      host: ns1.example.com
+      # optional, default: non-authed
+      key_name: env/AXFR_KEY_NAME
+      # optional, default: non-authed
+      key_secret: env/AXFR_KEY_SECRET
+```
+
+See below for example Bind9 server configuration. Any server that supports RFC
+compliant AXFR should work here. If you have a need for support of other auth
+mechinism please open an issue.
+
+#### Rfc2136Provider/BindProvider
+
+A provider that combines AXFR and RFC 2136 to enable a full featured octoDNS
+provider for the [Bind9 server](https://www.isc.org/bind/)
+
+Both allow transfer 
+  allow-transfer { key octodns.exxampled.com.; };
+  allow-update { key octodns.exxampled.com.; };
+
+```yaml
+providers:
+  rfc2136:
+      # also available as octodns_bind.BindProvider
+      class: octodns_bind.Rfc2136
+      # The address of nameserver to perform zone transfer against
+      host: ns1.example.com
+      # optional, default: non-authed
+      key_name: env/AXFR_KEY_NAME
+      # optional, default: non-authed
+      key_secret: env/AXFR_KEY_SECRET
+```
+
+Example Bind9 config to enable AXFR and RFC 2136
+
+```
+# generated with rndc-confgen
+key octodns.exxampled.com. {
+  algorithm hmac-sha256;
+  secret "vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU=";
+};
+
+zone "exxampled.com." {
+  type master;
+  file "/var/lib/bind/db.exxampled.com";
+  notify explicit;
+  # this enables AXFR
+  allow-transfer { key octodns.exxampled.com.; };
+  # this allows RFC 2136
+  allow-update { key octodns.exxampled.com.; };
+};
+```
+
+Any server that supports RFC compliant AXFR and RFC 2136 should work here. If
+you have a need for support of other auth mechinism please open an issue.
 
 ### Support Information
 
 #### Records
 
-TODO: All octoDNS record types are supported.
+A, AAAA, CAA, CNAME, LOC, MX, NS, PTR, SPF, SRV, SSHFP, TXT
 
 #### Dynamic
 
-TODO: BindProvider does not support dynamic records.
+This module does not support dynamic records.
 
 ### Development
 
 See the [/script/](/script/) directory for some tools to help with the development process. They generally follow the [Script to rule them all](https://github.com/github/scripts-to-rule-them-all) pattern. Most useful is `./script/bootstrap` which will create a venv and install both the runtime and development related requirements. It will also hook up a pre-commit hook that covers most of what's run by CI.
 
-TODO: any provider specific setup, a docker compose to run things locally etc?
+There is a [docker-compose.yml](/docker-compose.yml) file included in the repo that will set up a Bind9 server with AXFR transfers and RFC 2136 updates enabled for use in development. The secret for the server can be found in [docker/etc/bind/named.conf](docker/etc/bind/named.conf).

@@ -22,8 +22,8 @@ grep -r -I --line-number "# pragma: +no.*cover" $SOURCE_DIR && {
   exit 1
 }
 
-# TODO: ensure any common env var secrets have been cleared
-export TODO_ACCESS_KEY_ID=
+export BIND_KEY_NAME=
+export BIND_KEY_SECRET=
 
 export PYTHONPATH=.:$PYTHONPATH
 

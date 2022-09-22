@@ -32,12 +32,7 @@ def version():
 
 description, long_description = descriptions()
 
-tests_require = (
-    'pytest',
-    'pytest-cov',
-    'pytest-network',
-    # TODO: other test-time requirements
-)
+tests_require = ('pytest', 'pytest-cov', 'pytest-network')
 
 setup(
     author='Adam Smith',
@@ -54,8 +49,9 @@ setup(
         )
     },
     install_requires=(
-        'octodns>=0.9.14',
-        # TODO: other requirements
+        'dnspython>=2.2.1',
+        # this version doesn't exist yet...
+        'octodns>=0.9.20',
     ),
     license='MIT',
     long_description=long_description,
