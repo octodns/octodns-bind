@@ -1,0 +1,17 @@
+version: "3.9"  # optional since v1.27.0
+
+services:
+  bind9:
+    # https://hub.docker.com/r/internetsystemsconsortium/bind9
+    image: internetsystemsconsortium/bind9:9.18
+    ports: 
+      - 53:53/tcp
+      - 53:53/udp
+      - 953:953/tcp
+    volumes:
+      - type: bind
+        source: ./docker/etc/bind/named.conf
+        target: /etc/bind/named.conf
+      - type: bind
+        source: ./docker/var/lib/bind/db.exxampled.com
+        target: /var/lib/bind/db.exxampled.com
