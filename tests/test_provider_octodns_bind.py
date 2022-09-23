@@ -11,11 +11,12 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from octodns.zone import Zone
-from octodns.record import ValidationError
+from octodns.record import Record, Rr, ValidationError
 
 from octodns_bind import (
     AxfrSource,
     AxfrSourceZoneTransferFailed,
+    Rfc2136Provider,
     ZoneFileSource,
     ZoneFileSourceLoadFailure,
 )
@@ -131,3 +132,81 @@ class TestZoneFileSource(TestCase):
         invalid = Zone('invalid.records.', [])
         self.source.populate(invalid, lenient=True)
         self.assertEqual(12, len(invalid.records))
+
+
+class TestRfc2136Provider(TestCase):
+    def test_auth(self):
+        provider = Rfc2136Provider('test', 'localhost')
+        self.assertEqual({}, provider._auth_params())
+
+        key_secret = 'vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU='
+        provider = Rfc2136Provider(
+            'test', 'localhost', key_name='key-name', key_secret=key_secret
+        )
+        self.assertTrue('keyring' in provider._auth_params())
+
+    @patch('dns.update.Update.delete')
+    @patch('dns.update.Update.replace')
+    @patch('dns.update.Update.add')
+    @patch('dns.query.tcp')
+    @patch('octodns_bind.AxfrPopulate.zone_records')
+    def test_apply(
+        self,
+        zone_records_mock,
+        dns_query_tcp_mock,
+        add_mock,
+        replace_mock,
+        delete_mock,
+    ):
+        provider = Rfc2136Provider('test', 'localhost')
+
+        desired = Zone('unit.tests.', [])
+        record = Record.new(
+            desired, 'a', {'type': 'A', 'ttl': 42, 'value': '1.2.3.4'}
+        )
+        desired.add_record(record)
+
+        def reset():
+            zone_records_mock.reset_mock()
+            dns_query_tcp_mock.reset_mock()
+            add_mock.reset_mock()
+            replace_mock.reset_mock()
+            delete_mock.reset_mock()
+
+        # create
+        reset()
+        zone_records_mock.side_effect = [[]]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        provider.apply(plan)
+        dns_query_tcp_mock.assert_called_once()
+        add_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
+        replace_mock.assert_not_called()
+        delete_mock.assert_not_called()
+
+        # update
+        reset()
+        zone_records_mock.side_effect = [
+            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        provider.apply(plan)
+        dns_query_tcp_mock.assert_called_once()
+        replace_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
+        add_mock.assert_not_called()
+        delete_mock.assert_not_called()
+
+        # delete
+        reset()
+        desired = Zone('unit.tests.', [])
+        zone_records_mock.side_effect = [
+            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        provider.apply(plan)
+        dns_query_tcp_mock.assert_called_once()
+        delete_mock.assert_called_with('a.unit.tests.', 'A', '2.3.4.5')
+        add_mock.assert_not_called()
+        replace_mock.assert_not_called()
