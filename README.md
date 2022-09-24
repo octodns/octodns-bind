@@ -1,6 +1,6 @@
 ## RFC compliant (Bind9) provider for octoDNS
 
-An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Bind and other standards compliant servers](https://github.com/octodns/octodns-bind) and includes support for sourcing records via AXFR and reading zone files.
+An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Bind](https://www.isc.org/bind/) and other standards compliant servers. It includes support for sourcing records via AXFR, reading zone files, and fully managing records with [RFC 2136](https://datatracker.ietf.org/doc/html/rfc2136).
 
 ### Installation
 
