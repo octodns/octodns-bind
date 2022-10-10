@@ -48,11 +48,7 @@ setup(
             'twine>=3.4.2',
         )
     },
-    install_requires=(
-        'dnspython>=2.2.1',
-        # this version doesn't exist yet...
-        'octodns>=0.9.20',
-    ),
+    install_requires=('dnspython>=2.2.1', 'octodns>=0.9.20'),
     license='MIT',
     long_description=long_description,
     long_description_content_type='text/markdown',
