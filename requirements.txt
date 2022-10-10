@@ -3,8 +3,6 @@ dnspython==2.2.1
 fqdn==1.5.1
 idna==3.4
 natsort==8.2.0
-#octodns==0.9.20
+octodns==0.9.20
 python-dateutil==2.8.2
 six==1.16.0
-
--e git+https://git@github.com/github/octodns.git@records-rfc-test#egg=octodns
