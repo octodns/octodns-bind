@@ -47,7 +47,7 @@ providers:
       # File extension on zone files
       # Appended to zone name to locate file
       # (optional, default None)
-      file_extension: zone
+      file_extension: .zone
       # Should sanity checks of the origin node be done
       # (optional, default true)
       check_origin: false
