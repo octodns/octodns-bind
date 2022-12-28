@@ -67,8 +67,8 @@ class ZoneFileSourceException(Exception):
 
 
 class ZoneFileSourceNotFound(ZoneFileSourceException):
-    def __init__(self):
-        super().__init__('Zone file not found')
+    def __init__(self, path):
+        super().__init__(f'Zone file not found at {path}')
 
 
 class ZoneFileSourceLoadFailure(ZoneFileSourceException):
@@ -97,10 +97,11 @@ class ZoneFileSource(RfcPopulate, BaseSource):
     def _load_zone_file(self, zone_name):
         zone_filename = f'{zone_name[:-1]}{self.file_extension}'
         zonefiles = listdir(self.directory)
+        path = join(self.directory, zone_filename)
         if zone_filename in zonefiles:
             try:
                 z = dns.zone.from_file(
-                    join(self.directory, zone_filename),
+                    path,
                     zone_name,
                     relativize=False,
                     check_origin=self.check_origin,
@@ -108,16 +109,13 @@ class ZoneFileSource(RfcPopulate, BaseSource):
             except DNSException as error:
                 raise ZoneFileSourceLoadFailure(error)
         else:
-            raise ZoneFileSourceNotFound()
+            raise ZoneFileSourceNotFound(path)
 
         return z
 
     def zone_records(self, zone):
         if zone.name not in self._zone_records:
-            try:
-                z = self._load_zone_file(zone.name)
-            except ZoneFileSourceNotFound:
-                return []
+            z = self._load_zone_file(zone.name)
 
             records = []
             for (name, ttl, rdata) in z.iterate_rdatas():
