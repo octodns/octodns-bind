@@ -86,7 +86,7 @@ Both allow transfer
 providers:
   rfc2136:
       # also available as octodns_bind.BindProvider
-      class: octodns_bind.Rfc2136
+      class: octodns_bind.Rfc2136Provider
       # The address of nameserver to perform zone transfer against
       host: ns1.example.com
       # optional, default: non-authed
