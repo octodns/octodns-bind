@@ -120,7 +120,7 @@ class ZoneFileSource(RfcPopulate, BaseSource):
                 return []
 
             records = []
-            for (name, ttl, rdata) in z.iterate_rdatas():
+            for name, ttl, rdata in z.iterate_rdatas():
                 rdtype = dns.rdatatype.to_text(rdata.rdtype)
                 if rdtype in self.SUPPORTS:
                     records.append(
@@ -178,7 +178,7 @@ class AxfrPopulate(RfcPopulate):
 
         records = []
 
-        for (name, ttl, rdata) in z.iterate_rdatas():
+        for name, ttl, rdata in z.iterate_rdatas():
             rdtype = dns.rdatatype.to_text(rdata.rdtype)
             if rdtype in self.SUPPORTS:
                 records.append(Rr(name.to_text(), rdtype, ttl, rdata.to_text()))
