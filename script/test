@@ -17,6 +17,4 @@ fi
 export BIND_KEY_NAME=
 export BIND_KEY_SECRET=
 
-export PYTHONPATH=.:$PYTHONPATH
-
 pytest --disable-network "$@"

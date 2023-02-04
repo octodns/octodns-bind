@@ -2,16 +2,16 @@
 #
 #
 
-import dns.zone
-from dns.exception import DNSException
-
 from os.path import exists
 from shutil import copyfile
 from unittest import TestCase
 from unittest.mock import patch
 
-from octodns.zone import Zone
+import dns.zone
+from dns.exception import DNSException
+
 from octodns.record import Record, Rr, ValidationError
+from octodns.zone import Zone
 
 from octodns_bind import (
     AxfrSource,

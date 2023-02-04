@@ -2,17 +2,17 @@
 #
 #
 
-from dns import tsigkeyring
-from dns.exception import DNSException
-from dns.update import Update as DnsUpdate
-import dns.name
-import dns.query
-import dns.zone
-import dns.rdatatype
-
 from logging import getLogger
 from os import listdir
 from os.path import join
+
+import dns.name
+import dns.query
+import dns.rdatatype
+import dns.zone
+from dns import tsigkeyring
+from dns.exception import DNSException
+from dns.update import Update as DnsUpdate
 
 from octodns.provider.base import BaseProvider
 from octodns.record import Create, Record, Rr, Update
@@ -120,7 +120,7 @@ class ZoneFileSource(RfcPopulate, BaseSource):
                 return []
 
             records = []
-            for (name, ttl, rdata) in z.iterate_rdatas():
+            for name, ttl, rdata in z.iterate_rdatas():
                 rdtype = dns.rdatatype.to_text(rdata.rdtype)
                 if rdtype in self.SUPPORTS:
                     records.append(
@@ -178,7 +178,7 @@ class AxfrPopulate(RfcPopulate):
 
         records = []
 
-        for (name, ttl, rdata) in z.iterate_rdatas():
+        for name, ttl, rdata in z.iterate_rdatas():
             rdtype = dns.rdatatype.to_text(rdata.rdtype)
             if rdtype in self.SUPPORTS:
                 records.append(Rr(name.to_text(), rdtype, ttl, rdata.to_text()))
