@@ -142,17 +142,19 @@ class AxfrSourceZoneTransferFailed(AxfrSourceException):
 
 
 class AxfrPopulate(RfcPopulate):
-    def __init__(self, id, host, key_name=None, key_secret=None):
+    def __init__(self, id, host, port=53, key_name=None, key_secret=None):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
-            '__init__: id=%s, host=%s, key_name=%s, key_secret=%s',
+            '__init__: id=%s, host=%s, port=%d, key_name=%s, key_secret=%s',
             id,
             host,
+            port,
             key_name,
             key_secret is not None,
         )
         super().__init__(id)
         self.host = host
+        self.port = port
         self.key_name = key_name
         self.key_secret = key_secret
 
@@ -169,7 +171,7 @@ class AxfrPopulate(RfcPopulate):
         try:
             z = dns.zone.from_xfr(
                 dns.query.xfr(
-                    self.host, zone.name, relativize=False, **auth_params
+                    self.host, zone.name, port=self.port, relativize=False, **auth_params
                 ),
                 relativize=False,
             )
@@ -216,7 +218,7 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             else:  # isinstance(change, Delete):
                 update.delete(name, _type, *rdatas)
 
-        dns.query.tcp(update, self.host)
+        dns.query.tcp(update, self.host, port=self.port)
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
