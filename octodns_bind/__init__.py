@@ -218,8 +218,12 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
 
         r: dns.message.Message = dns.query.tcp(update, self.host)
         if r.rcode() != dns.rcode.NOERROR:
-            self.log.error(f"Could not perform update: {r.rcode()}")
-            raise Exception(f"Could not perform update: {r.rcode()}")
+            self.log.error(
+                f"Could not perform update: {dns.rcode.to_text(r.rcode())}"
+            )
+            raise Exception(
+                f"Could not perform update: {dns.rcode.to_text(r.rcode())}"
+            )
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
