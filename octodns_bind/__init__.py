@@ -216,7 +216,9 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             else:  # isinstance(change, Delete):
                 update.delete(name, _type, *rdatas)
 
-        dns.query.tcp(update, self.host)
+        r: dns.message.Message = dns.query.tcp(update, self.host)
+        if r.rcode() != dns.rcode.NOERROR:
+            raise Exception(f"Could not perform update: {r}")
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
