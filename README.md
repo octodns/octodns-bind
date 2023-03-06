@@ -67,6 +67,9 @@ providers:
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
       key_secret: env/AXFR_KEY_SECRET
+      # optional, see https://github.com/rthalley/dnspython/blob/master/dns/tsig.py#L78
+      # for available algorithms
+      key_algorithm: hmac-sha1
 ```
 
 See below for example Bind9 server configuration. Any server that supports RFC
@@ -93,6 +96,9 @@ providers:
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
       key_secret: env/AXFR_KEY_SECRET
+      # optional, see https://github.com/rthalley/dnspython/blob/master/dns/tsig.py#L78
+      # for available algorithms
+      key_algorithm: hmac-sha1
 ```
 
 Example Bind9 config to enable AXFR and RFC 2136
