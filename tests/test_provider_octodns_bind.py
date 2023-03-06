@@ -141,9 +141,14 @@ class TestRfc2136Provider(TestCase):
 
         key_secret = 'vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU='
         provider = Rfc2136Provider(
-            'test', 'localhost', key_name='key-name', key_secret=key_secret
+            'test',
+            'localhost',
+            key_name='key-name',
+            key_secret=key_secret,
+            key_algorithm='hmac-sha1',
         )
         self.assertTrue('keyring' in provider._auth_params())
+        self.assertTrue('keyalgorithm' in provider._auth_params())
 
     @patch('dns.update.Update.delete')
     @patch('dns.update.Update.replace')
