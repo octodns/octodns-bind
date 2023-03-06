@@ -142,7 +142,7 @@ class AxfrSourceZoneTransferFailed(AxfrSourceException):
 
 
 class AxfrPopulate(RfcPopulate):
-    def __init__(self, id, host, key_name=None, key_secret=None):
+    def __init__(self, id, host, key_name=None, key_secret=None, key_algorithm=None):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
             '__init__: id=%s, host=%s, key_name=%s, key_secret=%s',
@@ -155,6 +155,7 @@ class AxfrPopulate(RfcPopulate):
         self.host = host
         self.key_name = key_name
         self.key_secret = key_secret
+        self.key_algorithm = key_secret
 
     def _auth_params(self):
         params = {}
@@ -162,6 +163,8 @@ class AxfrPopulate(RfcPopulate):
             params['keyring'] = tsigkeyring.from_text(
                 {self.key_name: self.key_secret}
             )
+        if self.key_algorithm is not None:
+            params['keyalgorithm'] = self.key_algorithm
         return params
 
     def zone_records(self, zone):
