@@ -155,7 +155,7 @@ class AxfrPopulate(RfcPopulate):
         self.host = host
         self.key_name = key_name
         self.key_secret = key_secret
-        self.key_algorithm = key_secret
+        self.key_algorithm = key_algorithm
 
     def _auth_params(self):
         params = {}
