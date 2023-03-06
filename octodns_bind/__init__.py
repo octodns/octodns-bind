@@ -142,7 +142,9 @@ class AxfrSourceZoneTransferFailed(AxfrSourceException):
 
 
 class AxfrPopulate(RfcPopulate):
-    def __init__(self, id, host, key_name=None, key_secret=None, key_algorithm=None):
+    def __init__(
+        self, id, host, key_name=None, key_secret=None, key_algorithm=None
+    ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
             '__init__: id=%s, host=%s, key_name=%s, key_secret=%s',
