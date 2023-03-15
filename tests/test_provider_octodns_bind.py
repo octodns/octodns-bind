@@ -17,6 +17,7 @@ from octodns_bind import (
     AxfrSource,
     AxfrSourceZoneTransferFailed,
     Rfc2136Provider,
+    Rfc2136ProviderUpdateFailed,
     ZoneFileSource,
     ZoneFileSourceLoadFailure,
 )
@@ -172,6 +173,7 @@ class TestRfc2136Provider(TestCase):
             add_mock.reset_mock()
             replace_mock.reset_mock()
             delete_mock.reset_mock()
+            dns_query_tcp_mock.return_value = dns.message.Message()
 
         # create
         reset()
@@ -182,6 +184,22 @@ class TestRfc2136Provider(TestCase):
         dns_query_tcp_mock.assert_called_once()
         add_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
         replace_mock.assert_not_called()
+        delete_mock.assert_not_called()
+
+        # update with error
+        reset()
+        error_result = dns.message.Message()
+        error_result.set_rcode(dns.rcode.REFUSED)
+        dns_query_tcp_mock.return_value = error_result
+        zone_records_mock.side_effect = [
+            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        self.assertRaises(Rfc2136ProviderUpdateFailed, provider.apply, plan)
+        dns_query_tcp_mock.assert_called_once()
+        replace_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
+        add_mock.assert_not_called()
         delete_mock.assert_not_called()
 
         # update

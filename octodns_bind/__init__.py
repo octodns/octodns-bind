@@ -190,6 +190,15 @@ class AxfrSource(AxfrPopulate, BaseSource):
     pass
 
 
+class Rfc2136ProviderException(Exception):
+    pass
+
+
+class Rfc2136ProviderUpdateFailed(Rfc2136ProviderException):
+    def __init__(self, err):
+        super().__init__(f'Unable to perform update: {err}')
+
+
 class Rfc2136Provider(AxfrPopulate, BaseProvider):
     '''
     RFC-2136 7.6: States it's not possible to create zones, so we'll assume they
@@ -216,7 +225,9 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             else:  # isinstance(change, Delete):
                 update.delete(name, _type, *rdatas)
 
-        dns.query.tcp(update, self.host)
+        r: dns.message.Message = dns.query.tcp(update, self.host)
+        if r.rcode() != dns.rcode.NOERROR:
+            raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
