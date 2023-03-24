@@ -47,7 +47,10 @@ class TestAxfrSource(TestCase):
         with self.assertRaises(AxfrSourceZoneTransferFailed) as ctx:
             zone = Zone('unit.tests.', [])
             self.source.populate(zone)
-        self.assertEqual('Unable to Perform Zone Transfer', str(ctx.exception))
+        self.assertEqual(
+            'Unable to Perform Zone Transfer',
+            str(ctx.exception).split(':', 1)[0],
+        )
 
     @patch('dns.zone.from_xfr')
     def test_populate_reverse(self, from_xfr_mock):

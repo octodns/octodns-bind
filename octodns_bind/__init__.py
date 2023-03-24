@@ -137,8 +137,8 @@ class AxfrSourceException(Exception):
 
 
 class AxfrSourceZoneTransferFailed(AxfrSourceException):
-    def __init__(self):
-        super().__init__('Unable to Perform Zone Transfer')
+    def __init__(self, err):
+        super().__init__(f'Unable to Perform Zone Transfer: {err}')
 
 
 class AxfrPopulate(RfcPopulate):
@@ -178,8 +178,8 @@ class AxfrPopulate(RfcPopulate):
                 ),
                 relativize=False,
             )
-        except DNSException:
-            raise AxfrSourceZoneTransferFailed()
+        except DNSException as err:
+            raise AxfrSourceZoneTransferFailed(err) from None
 
         records = []
 
