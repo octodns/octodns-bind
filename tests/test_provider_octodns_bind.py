@@ -17,6 +17,7 @@ from octodns_bind import (
     AxfrSource,
     AxfrSourceZoneTransferFailed,
     Rfc2136Provider,
+    Rfc2136ProviderUpdateFailed,
     ZoneFileSource,
     ZoneFileSourceLoadFailure,
 )
@@ -47,7 +48,10 @@ class TestAxfrSource(TestCase):
         with self.assertRaises(AxfrSourceZoneTransferFailed) as ctx:
             zone = Zone('unit.tests.', [])
             self.source.populate(zone)
-        self.assertEqual('Unable to Perform Zone Transfer', str(ctx.exception))
+        self.assertEqual(
+            'Unable to Perform Zone Transfer',
+            str(ctx.exception).split(':', 1)[0],
+        )
 
     @patch('dns.zone.from_xfr')
     def test_populate_reverse(self, from_xfr_mock):
@@ -141,9 +145,14 @@ class TestRfc2136Provider(TestCase):
 
         key_secret = 'vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU='
         provider = Rfc2136Provider(
-            'test', 'localhost', key_name='key-name', key_secret=key_secret
+            'test',
+            'localhost',
+            key_name='key-name',
+            key_secret=key_secret,
+            key_algorithm='hmac-sha1',
         )
         self.assertTrue('keyring' in provider._auth_params())
+        self.assertTrue('keyalgorithm' in provider._auth_params())
 
     @patch('dns.update.Update.delete')
     @patch('dns.update.Update.replace')
@@ -172,6 +181,7 @@ class TestRfc2136Provider(TestCase):
             add_mock.reset_mock()
             replace_mock.reset_mock()
             delete_mock.reset_mock()
+            dns_query_tcp_mock.return_value = dns.message.Message()
 
         # create
         reset()
@@ -182,6 +192,22 @@ class TestRfc2136Provider(TestCase):
         dns_query_tcp_mock.assert_called_once()
         add_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
         replace_mock.assert_not_called()
+        delete_mock.assert_not_called()
+
+        # update with error
+        reset()
+        error_result = dns.message.Message()
+        error_result.set_rcode(dns.rcode.REFUSED)
+        dns_query_tcp_mock.return_value = error_result
+        zone_records_mock.side_effect = [
+            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        self.assertRaises(Rfc2136ProviderUpdateFailed, provider.apply, plan)
+        dns_query_tcp_mock.assert_called_once()
+        replace_mock.assert_called_with('a.unit.tests.', 42, 'A', '1.2.3.4')
+        add_mock.assert_not_called()
         delete_mock.assert_not_called()
 
         # update

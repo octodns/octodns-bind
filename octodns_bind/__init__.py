@@ -137,26 +137,36 @@ class AxfrSourceException(Exception):
 
 
 class AxfrSourceZoneTransferFailed(AxfrSourceException):
-    def __init__(self):
-        super().__init__('Unable to Perform Zone Transfer')
+    def __init__(self, err):
+        super().__init__(f'Unable to Perform Zone Transfer: {err}')
 
 
 class AxfrPopulate(RfcPopulate):
-    def __init__(self, id, host, port=53, key_name=None, key_secret=None):
+    def __init__(
+        self,
+        id,
+        host,
+        port=53,
+        key_name=None,
+        key_secret=None,
+        key_algorithm=None,
+    ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
-            '__init__: id=%s, host=%s, port=%d, key_name=%s, key_secret=%s',
+            '__init__: id=%s, host=%s, port=%d, key_name=%s, key_secret=%s, key_algorithm=%s',
             id,
             host,
             port,
             key_name,
             key_secret is not None,
+            key_algorithm is not None,
         )
         super().__init__(id)
         self.host = host
         self.port = port
         self.key_name = key_name
         self.key_secret = key_secret
+        self.key_algorithm = key_algorithm
 
     def _auth_params(self):
         params = {}
@@ -164,6 +174,8 @@ class AxfrPopulate(RfcPopulate):
             params['keyring'] = tsigkeyring.from_text(
                 {self.key_name: self.key_secret}
             )
+        if self.key_algorithm is not None:
+            params['keyalgorithm'] = self.key_algorithm
         return params
 
     def zone_records(self, zone):
@@ -171,12 +183,16 @@ class AxfrPopulate(RfcPopulate):
         try:
             z = dns.zone.from_xfr(
                 dns.query.xfr(
-                    self.host, zone.name, port=self.port, relativize=False, **auth_params
+                    self.host,
+                    zone.name,
+                    port=self.port,
+                    relativize=False,
+                    **auth_params,
                 ),
                 relativize=False,
             )
-        except DNSException:
-            raise AxfrSourceZoneTransferFailed()
+        except DNSException as err:
+            raise AxfrSourceZoneTransferFailed(err) from None
 
         records = []
 
@@ -190,6 +206,15 @@ class AxfrPopulate(RfcPopulate):
 
 class AxfrSource(AxfrPopulate, BaseSource):
     pass
+
+
+class Rfc2136ProviderException(Exception):
+    pass
+
+
+class Rfc2136ProviderUpdateFailed(Rfc2136ProviderException):
+    def __init__(self, err):
+        super().__init__(f'Unable to perform update: {err}')
 
 
 class Rfc2136Provider(AxfrPopulate, BaseProvider):
@@ -218,7 +243,11 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             else:  # isinstance(change, Delete):
                 update.delete(name, _type, *rdatas)
 
-        dns.query.tcp(update, self.host, port=self.port)
+        r: dns.message.Message = dns.query.tcp(
+            update, self.host, port=self.port
+        )
+        if r.rcode() != dns.rcode.NOERROR:
+            raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
