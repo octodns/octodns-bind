@@ -163,7 +163,7 @@ class AxfrPopulate(RfcPopulate):
         )
         super().__init__(id)
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.key_name = key_name
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
