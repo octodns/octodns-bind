@@ -37,6 +37,7 @@ class RfcPopulate:
             'SPF',
             'SRV',
             'SSHFP',
+            'TLSA',
             'TXT',
         )
     )
