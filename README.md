@@ -132,7 +132,7 @@ you have a need for support of other auth mechinism please open an issue.
 
 #### Records
 
-A, AAAA, CAA, CNAME, LOC, MX, NS, PTR, SPF, SRV, SSHFP, TXT
+A, AAAA, CAA, CNAME, LOC, MX, NS, PTR, SPF, SRV, SSHFP, TLSA, TXT
 
 #### Dynamic
 

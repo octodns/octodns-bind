@@ -55,3 +55,9 @@ aaaa        600   IN  AAAA  2601:644:500:e210:62f8:1dff:feb8:947a
 ; CNAME Records
 cname       300   IN  CNAME   unit.tests.
 included    300   IN  CNAME   unit.tests.
+
+; TLSA Records
+_25._tcp.mx1      IN TLSA 3 1 1 8A9A70596E869BED72C69D97A8895DFA
+_25._tcp.mx2      IN TLSA 3 1 1 (
+                              C164B2C3F36D068D42A6138E446152F5
+                              68615F28C69BD96A73E354CAC88ED00C )
