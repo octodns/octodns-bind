@@ -20,6 +20,7 @@ from octodns_bind import (
     Rfc2136ProviderUpdateFailed,
     ZoneFileSource,
     ZoneFileSourceLoadFailure,
+    ZoneFileSourceNotFound,
 )
 
 
@@ -66,6 +67,17 @@ class TestAxfrSource(TestCase):
 class TestZoneFileSource(TestCase):
     source = ZoneFileSource('test', './tests/zones', file_extension='.tst')
 
+    def test_zonefile_not_found(self):
+        with self.assertRaises(ZoneFileSourceNotFound) as ctx:
+            source = ZoneFileSource('notfound', './tests/zones')
+            notfound = Zone('not.found.', [])
+            source.populate(notfound)
+
+        self.assertEqual(
+            'Zone file not found at ./tests/zones/not.found.',
+            str(ctx.exception),
+        )
+
     def test_zonefiles_with_extension(self):
         source = ZoneFileSource('test', './tests/zones', '.extension')
         # Load zonefiles with a specified file extension
@@ -108,11 +120,6 @@ class TestZoneFileSource(TestCase):
 
         # bust the cache
         del self.source._zone_records[valid.name]
-
-        # No zone file in directory
-        missing = Zone('missing.zone.', [])
-        self.source.populate(missing)
-        self.assertEqual(0, len(missing.records))
 
         # Zone file is not valid
         with self.assertRaises(ZoneFileSourceLoadFailure) as ctx:
