@@ -9,6 +9,7 @@ from os.path import join
 import dns.name
 import dns.query
 import dns.rdatatype
+import dns.resolver
 import dns.zone
 from dns import tsigkeyring
 from dns.exception import DNSException
@@ -161,11 +162,24 @@ class AxfrPopulate(RfcPopulate):
             key_algorithm is not None,
         )
         super().__init__(id)
-        self.host = host
+        self.host = self._host(host)
         self.port = int(port)
         self.key_name = key_name
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
+
+    def _host(self, host):
+        h = host
+        try:
+            # Determine if IPv4/IPv6 address
+            dns.inet.af_for_address(host)
+        except ValueError:
+            try:
+                h = dns.resolver.resolve(host)[0].address
+            except DNSException as err:
+                raise AxfrSourceZoneTransferFailed(err) from None
+
+        return h
 
     def _auth_params(self):
         params = {}

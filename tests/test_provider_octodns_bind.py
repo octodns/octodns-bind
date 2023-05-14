@@ -7,6 +7,7 @@ from shutil import copyfile
 from unittest import TestCase
 from unittest.mock import patch
 
+import dns.resolver
 import dns.zone
 from dns.exception import DNSException
 
@@ -146,6 +147,27 @@ class TestZoneFileSource(TestCase):
 
 
 class TestRfc2136Provider(TestCase):
+    def test_host_ip(self):
+        provider = Rfc2136Provider('test', '192.0.2.1')
+        self.assertEqual('192.0.2.1', provider.host)
+
+    @patch('dns.resolver.resolve')
+    def test_host_dns(self, resolve_mock):
+        host, ip = 'axfr.unit.tests.', '192.0.2.2'
+
+        # Query success
+        resolve_mock.return_value = dns.rrset.from_text(
+            host, 300, 'IN', 'A', ip
+        )
+        provider = Rfc2136Provider('test', host)
+        self.assertEqual(ip, provider.host)
+
+        # Query failure
+        resolve_mock.reset_mock()
+        resolve_mock.side_effect = DNSException
+        with self.assertRaises(AxfrSourceZoneTransferFailed):
+            provider = Rfc2136Provider('test', host)
+
     def test_auth(self):
         provider = Rfc2136Provider('test', 'localhost')
         self.assertEqual({}, provider._auth_params())
