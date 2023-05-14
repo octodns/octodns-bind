@@ -19,7 +19,7 @@ from octodns.provider.base import BaseProvider
 from octodns.record import Create, Record, Rr, Update
 from octodns.source.base import BaseSource
 
-__VERSION__ = '0.0.2'
+__VERSION__ = '0.0.3'
 
 
 class RfcPopulate:

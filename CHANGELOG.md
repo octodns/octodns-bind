@@ -1,3 +1,9 @@
+## v0.0.3 - 2023-05-14 - TSLA, Error, and DNS host
+
+- Host can be a DNS name or an IP address
+- ZoneFileSource will error if file is not found
+- Support for TLSA records
+
 ## v0.0.2 - 2023-04-05 - Ports and Crypto
 
 - Add port parameter to AXFR source and RFC2136 provider.
