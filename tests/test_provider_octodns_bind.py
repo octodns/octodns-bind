@@ -26,7 +26,7 @@ from octodns_bind import (
 
 
 class TestAxfrSource(TestCase):
-    source = AxfrSource('test', 'localhost')
+    source = AxfrSource('test', '127.0.0.1')
 
     forward_zonefile = dns.zone.from_file(
         './tests/zones/unit.tests.tst', 'unit.tests', relativize=False
@@ -169,13 +169,13 @@ class TestRfc2136Provider(TestCase):
             provider = Rfc2136Provider('test', host)
 
     def test_auth(self):
-        provider = Rfc2136Provider('test', 'localhost')
+        provider = Rfc2136Provider('test', '127.0.0.1')
         self.assertEqual({}, provider._auth_params())
 
         key_secret = 'vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU='
         provider = Rfc2136Provider(
             'test',
-            'localhost',
+            '127.0.0.1',
             key_name='key-name',
             key_secret=key_secret,
             key_algorithm='hmac-sha1',
@@ -196,7 +196,7 @@ class TestRfc2136Provider(TestCase):
         replace_mock,
         delete_mock,
     ):
-        provider = Rfc2136Provider('test', 'localhost')
+        provider = Rfc2136Provider('test', '127.0.0.1')
 
         desired = Zone('unit.tests.', [])
         record = Record.new(
