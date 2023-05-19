@@ -134,10 +134,12 @@ class TestZoneFileSource(TestCase):
         with self.assertRaises(ValidationError) as ctx:
             zone = Zone('invalid.records.', [])
             self.source.populate(zone)
+        # quotes were added to the record name 1.0.0rc1, this makes it work with
+        # both version
+        reason = str(ctx.exception).replace('"', '')
         self.assertEqual(
-            'Invalid record _invalid.invalid.records.\n'
-            '  - invalid name for SRV record',
-            str(ctx.exception),
+            'Invalid record _invalid.invalid.records.\n  - invalid name for SRV record',
+            reason,
         )
 
         # Records are not to RFC, but load anyhow (lenient=True)
