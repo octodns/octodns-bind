@@ -65,6 +65,10 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
+      # Use IPv6 to perform operations. Optional. Default: False
+      ipv6: False
+      # The number of seconds to wait until timing out. Optional. Default: 15
+      timeout: 15
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
@@ -96,6 +100,10 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
+      # Use IPv6 to perform operations. Optional. Default: False
+      ipv6: False
+      # The number of seconds to wait until timing out. Optional. Default: 15
+      timeout: 15
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
@@ -142,4 +150,25 @@ This module does not support dynamic records.
 
 See the [/script/](/script/) directory for some tools to help with the development process. They generally follow the [Script to rule them all](https://github.com/github/scripts-to-rule-them-all) pattern. Most useful is `./script/bootstrap` which will create a venv and install both the runtime and development related requirements. It will also hook up a pre-commit hook that covers most of what's run by CI.
 
-There is a [docker-compose.yml](/docker-compose.yml) file included in the repo that will set up a Bind9 server with AXFR transfers and RFC 2136 updates enabled for use in development. The secret for the server can be found in [docker/etc/bind/named.conf](docker/etc/bind/named.conf).
+#### Local Server
+
+A local server is included in the repo via [docker-compose.yml](/docker-compose.yml). This will set up a Bind9 server with AXFR transfers and RFC 2136 updates enabled for use in development on IPv4 and IPv6. Configuration for the server can be found in [docker/etc/bind/named.conf](docker/etc/bind/named.conf), including the TSIG secret which can be used to perform authenticated operations. Zonefiles can be found in [docker/var/lib/bind](docker/var/lib/bind). All logs are written to STDOUT and can be viewed by running `docker-compose logs -f`
+
+An example octodns configuration to interact with the local server is below:
+
+```yaml
+providers:
+  rfc2136:
+    class: octodns_bind.Rfc2136Provider
+    host: localhost
+    key_name: 'octodns.exxampled.com.'
+    key_secret: 'vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU='
+    key_algorithm: 'hmac-sha256'
+
+zones:
+  exxampled.com.:
+    sources:
+      - config
+    targets:
+      - rfc2136
+```
