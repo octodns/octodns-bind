@@ -65,6 +65,8 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
+      # optional, default: False
+      ipv6: False
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
@@ -96,6 +98,8 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
+      # optional, default: False
+      ipv6: False
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed

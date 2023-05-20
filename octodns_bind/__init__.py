@@ -2,6 +2,7 @@
 #
 #
 
+import socket
 from logging import getLogger
 from os import listdir
 from os.path import join
@@ -147,37 +148,44 @@ class AxfrPopulate(RfcPopulate):
         id,
         host,
         port=53,
+        ipv6=False,
         key_name=None,
         key_secret=None,
         key_algorithm=None,
     ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
-            '__init__: id=%s, host=%s, port=%d, key_name=%s, key_secret=%s, key_algorithm=%s',
+            '__init__: id=%s, host=%s, port=%d, ipv6=%s, key_name=%s, key_secret=%s, key_algorithm=%s',
             id,
             host,
             port,
+            ipv6,
             key_name,
             key_secret is not None,
             key_algorithm is not None,
         )
         super().__init__(id)
-        self.host = self._host(host)
+        self.host = self._host(host, ipv6)
         self.port = int(port)
+        self.ipv6 = ipv6
         self.key_name = key_name
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
 
-    def _host(self, host):
+    def _host(self, host, ipv6):
         h = host
         try:
             # Determine if IPv4/IPv6 address
             dns.inet.af_for_address(host)
         except ValueError:
+            address_family = socket.AF_INET
+            if ipv6:
+                address_family = socket.AF_INET6
+
             try:
-                h = dns.resolver.resolve(host)[0].address
-            except DNSException as err:
-                raise AxfrSourceZoneTransferFailed(err) from None
+                h = socket.getaddrinfo(host, None, address_family)[0][4][0]
+            except OSError as err:
+                raise AxfrSourceZoneTransferFailed(err)
 
         return h
 

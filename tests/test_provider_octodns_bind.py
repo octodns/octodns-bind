@@ -2,6 +2,7 @@
 #
 #
 
+import socket
 from os.path import exists
 from shutil import copyfile
 from unittest import TestCase
@@ -153,20 +154,28 @@ class TestRfc2136Provider(TestCase):
         provider = Rfc2136Provider('test', '192.0.2.1')
         self.assertEqual('192.0.2.1', provider.host)
 
-    @patch('dns.resolver.resolve')
+    @patch('socket.getaddrinfo')
     def test_host_dns(self, resolve_mock):
-        host, ip = 'axfr.unit.tests.', '192.0.2.2'
+        host, ipv4, ipv6 = 'axfr.unit.tests.', '192.0.2.2', '2001:db8::1'
 
-        # Query success
-        resolve_mock.return_value = dns.rrset.from_text(
-            host, 300, 'IN', 'A', ip
-        )
+        # Query success IPv4
+        resolve_mock.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', (ipv4, 0))
+        ]
         provider = Rfc2136Provider('test', host)
-        self.assertEqual(ip, provider.host)
+        self.assertEqual(ipv4, provider.host)
+
+        # Query success IPv6
+        resolve_mock.reset_mock()
+        resolve_mock.return_value = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, '', (ipv6, 0, 0, 0))
+        ]
+        provider = Rfc2136Provider('test', host, ipv6=True)
+        self.assertEqual(ipv6, provider.host)
 
         # Query failure
         resolve_mock.reset_mock()
-        resolve_mock.side_effect = DNSException
+        resolve_mock.side_effect = OSError
         with self.assertRaises(AxfrSourceZoneTransferFailed):
             provider = Rfc2136Provider('test', host)
 
