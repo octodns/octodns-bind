@@ -65,8 +65,10 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
-      # optional, default: False
+      # Use IPv6 to perform operations. Optional. Default: False
       ipv6: False
+      # The number of seconds to wait until timing out. Optional. Default: 15
+      timeout: 15
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
@@ -98,8 +100,10 @@ providers:
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
-      # optional, default: False
+      # Use IPv6 to perform operations. Optional. Default: False
       ipv6: False
+      # The number of seconds to wait until timing out. Optional. Default: 15
+      timeout: 15
       # optional, default: non-authed
       key_name: env/AXFR_KEY_NAME
       # optional, default: non-authed
