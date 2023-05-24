@@ -1,3 +1,8 @@
+## v0.0.4 - 2023-05-23 - First Stop /etc/hosts
+
+- Use socket.gethostaddr instead of dns.resolver.resolve to look up host
+- Add timeout for zone transfers and updates
+
 ## v0.0.3 - 2023-05-14 - TSLA, Error, and DNS host
 
 - Host can be a DNS name or an IP address
