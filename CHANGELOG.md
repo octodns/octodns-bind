@@ -1,3 +1,7 @@
+## v0.0.5 - 2023-??-?? - ???
+
+- ZoneFileSource.list_zones added to support dynamic zone config
+
 ## v0.0.4 - 2023-05-23 - First Stop /etc/hosts
 
 - Use socket.gethostaddr instead of dns.resolver.resolve to look up host

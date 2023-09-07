@@ -148,6 +148,18 @@ class TestZoneFileSource(TestCase):
         self.source.populate(invalid, lenient=True)
         self.assertEqual(12, len(invalid.records))
 
+    def test_list_zones(self):
+        source = ZoneFileSource('test', './tests/zones', file_extension='.tst')
+        self.assertEqual(
+            ['invalid.records.', 'invalid.zone.', 'unit.tests.'],
+            list(source.list_zones()),
+        )
+
+        source = ZoneFileSource('test', './tests/zones')
+        self.assertEqual(
+            ['2.0.192.in-addr.arpa.', 'unit.tests.'], list(source.list_zones())
+        )
+
 
 class TestRfc2136Provider(TestCase):
     def test_host_ip(self):
