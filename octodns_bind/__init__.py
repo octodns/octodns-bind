@@ -97,6 +97,14 @@ class ZoneFileSource(RfcPopulate, BaseSource):
 
         self._zone_records = {}
 
+    def list_zones(self):
+        n = len(self.file_extension) - 1
+        for filename in sorted(listdir(self.directory)):
+            if filename.endswith(self.file_extension):
+                if n > 0:
+                    filename = filename[:-n]
+                yield filename
+
     def _load_zone_file(self, zone_name):
         zone_filename = f'{zone_name[:-1]}{self.file_extension}'
         zonefiles = listdir(self.directory)
