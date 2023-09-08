@@ -272,11 +272,11 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 except AttributeError:
                     values = [record.value]
                 for value in values:
-                    if record._type == 'TXT':
+                    value = value.rdata_text
+                    if record._type in ('SPF', 'TXT'):
                         # TXT values need to be quoted
-                        value = f'"{value.rdata_text}"'
-                    else:
-                        value = value.rdata_text
+                        value = value.replace('"', '\\"')
+                        value = f'"{value}"'
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''

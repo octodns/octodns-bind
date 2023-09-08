@@ -268,7 +268,7 @@ cname       42 IN CNAME    target.unit.tests.
             txt = Record.new(
                 desired,
                 'txt',
-                {'type': 'TXT', 'ttl': 45, 'value': 'hello world'},
+                {'type': 'TXT', 'ttl': 45, 'value': 'hello " world'},
             )
             desired.add_record(txt)
 
@@ -288,7 +288,7 @@ cname       42 IN CNAME    target.unit.tests.
 
 @         43 IN NS       ns1.unit.tests.
           43 IN NS       ns2.unit.tests.
-txt       45 IN TXT      "hello world"
+txt       45 IN TXT      "hello \\" world"
 ''',
                     fh.read(),
                 )
