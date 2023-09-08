@@ -180,7 +180,7 @@ class TestZoneFileSource(TestCase):
 
     @patch('octodns_bind.ZoneFileProvider._serial')
     def test_apply(self, serial_mock):
-        serial_mock.side_effect = [424344, 454647]
+        serial_mock.side_effect = [424344, 454647, 484950]
 
         with TemporaryDirectory() as td:
             provider = ZoneFileProvider('target', td.dirname)
@@ -260,6 +260,35 @@ cname       42 IN CNAME    target.unit.tests.
             43 IN NS       ns1.unit.tests.
             43 IN NS       ns2.unit.tests.
 cname       42 IN CNAME    target.unit.tests.
+''',
+                    fh.read(),
+                )
+
+            # TXT record rrdata's are quoted
+            txt = Record.new(
+                desired,
+                'txt',
+                {'type': 'TXT', 'ttl': 45, 'value': 'hello world'},
+            )
+            desired.add_record(txt)
+
+            plan.changes = [Create(txt), Create(ns)]
+            provider._apply(plan)
+            with open(join(td.dirname, 'subdir', 'unit.tests.')) as fh:
+                self.assertEqual(
+                    '''$ORIGIN unit.tests.
+
+@ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
+    484950 ; Serial
+    3600       ; Refresh (1 hour)
+    600        ; Retry (10 minutes)
+    604800     ; Expire (1 week)
+    3600       ; NXDOMAIN ttl (1 hour)
+)
+
+@         43 IN NS       ns1.unit.tests.
+          43 IN NS       ns2.unit.tests.
+txt       45 IN TXT      "hello world"
 ''',
                     fh.read(),
                 )

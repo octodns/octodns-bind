@@ -272,16 +272,19 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 except AttributeError:
                     values = [record.value]
                 for value in values:
+                    if record._type == 'TXT':
+                        # TXT values need to be quoted
+                        value = f'"{value.rdata_text}"'
+                    else:
+                        value = value.rdata_text
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''
                     else:
                         prev_name = name
                     fh.write(
-                        f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} '
+                        f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} {value}\n'
                     )
-                    fh.write(value.rdata_text)
-                    fh.write('\n')
 
         self.log.debug(
             '_apply: zone=%s, num_records=%d', name, len(plan.changes)
