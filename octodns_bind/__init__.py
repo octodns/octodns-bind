@@ -6,7 +6,7 @@ import socket
 from datetime import datetime
 from logging import getLogger
 from os import listdir, makedirs
-from os.path import isdir, join
+from os.path import exists, isdir, join
 from string import Template
 
 import dns.name
@@ -66,8 +66,7 @@ class RfcPopulate:
             'populate:   found %s records', len(zone.records) - before
         )
 
-        # TODO: how do we do exists
-        return True
+        return self.zone_exists(zone)
 
 
 class ZoneFileSourceException(Exception):
@@ -199,6 +198,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
             raise ZoneFileSourceNotFound(path)
 
         return z
+
+    def zone_exists(self, zone):
+        zone_filename = f'{zone.name[:-1]}{self.file_extension}'
+        return exists(join(self.directory, zone_filename))
 
     def zone_records(self, zone, target):
         if zone.name not in self._zone_records:
@@ -391,6 +394,10 @@ class AxfrPopulate(RfcPopulate):
         if self.key_algorithm is not None:
             params['keyalgorithm'] = self.key_algorithm
         return params
+
+    def zone_exists(self, zone):
+        # We can't create them so they have to already exist
+        return True
 
     def zone_records(self, zone, target):
         auth_params = self._auth_params()
