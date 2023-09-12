@@ -121,6 +121,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
         # The details of the SOA record can be customized when creating
         # zonefiles with the following options.
+        default_ttl: 3600
         refresh: 3600
         retry: 600
         expire: 604800
@@ -134,6 +135,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         file_extension='.',
         check_origin=True,
         hostmaster_email='webmaster',
+        default_ttl=3600,
         refresh=3600,
         retry=600,
         expire=604800,
@@ -141,12 +143,13 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(
-            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s, refresh=%d, retry=%d, expire=%d, nxdomain=%d',
+            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s, default_ttl=%d, refresh=%d, retry=%d, expire=%d, nxdomain=%d',
             id,
             directory,
             file_extension,
             check_origin,
             hostmaster_email,
+            default_ttl,
             refresh,
             retry,
             expire,
@@ -157,6 +160,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         self.file_extension = file_extension
         self.check_origin = check_origin
         self.hostmaster_email = hostmaster_email
+        self.default_ttl = default_ttl
         self.refresh = refresh
         self.retry = retry
         self.expire = expire
@@ -278,7 +282,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                         'hostmaster_email': self._hostmaster_email(name),
                         'serial': self._serial(),
                         'zone_name': name,
-                        'default_ttl': 3600,
+                        'default_ttl': self.default_ttl,
                         'primary_nameserver': primary_nameserver,
                         'refresh': self.refresh,
                         'retry': self.retry,

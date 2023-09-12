@@ -273,6 +273,7 @@ cname       42 IN CNAME    target.unit.tests.
             desired.add_record(txt)
 
             # test out customizing the SOA details
+            provider.default_ttl = 3602
             provider.refresh = 3601
             provider.retry = 601
             provider.expire = 604801
@@ -284,7 +285,7 @@ cname       42 IN CNAME    target.unit.tests.
                 self.assertEqual(
                     '''$ORIGIN unit.tests.
 
-@ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
+@ 3602 IN SOA ns1.unit.tests. webmaster.unit.tests. (
     484950 ; Serial
     3601 ; Refresh (1 hour)
     601 ; Retry (10 minutes)
