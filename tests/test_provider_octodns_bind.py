@@ -210,10 +210,10 @@ class TestZoneFileSource(TestCase):
 
 @ 3600 IN SOA ns.unit.tests. webmaster.unit.tests. (
     424344 ; Serial
-    3600       ; Refresh (1 hour)
-    600        ; Retry (10 minutes)
-    604800     ; Expire (1 week)
-    3600       ; NXDOMAIN ttl (1 hour)
+    3600 ; Refresh (1 hour)
+    600 ; Retry (10 minutes)
+    604800 ; Expire (1 week)
+    3600 ; NXDOMAIN ttl (1 hour)
 )
 
 cname       42 IN CNAME    target.unit.tests.
@@ -250,10 +250,10 @@ cname       42 IN CNAME    target.unit.tests.
 
 @ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
     454647 ; Serial
-    3600       ; Refresh (1 hour)
-    600        ; Retry (10 minutes)
-    604800     ; Expire (1 week)
-    3600       ; NXDOMAIN ttl (1 hour)
+    3600 ; Refresh (1 hour)
+    600 ; Retry (10 minutes)
+    604800 ; Expire (1 week)
+    3600 ; NXDOMAIN ttl (1 hour)
 )
 
 @           44 IN A        1.2.3.4
@@ -272,6 +272,12 @@ cname       42 IN CNAME    target.unit.tests.
             )
             desired.add_record(txt)
 
+            # test out customizing the SOA details
+            provider.refresh = 3601
+            provider.retry = 601
+            provider.expire = 604801
+            provider.nxdomain = 3601
+
             plan.changes = [Create(txt), Create(ns)]
             provider._apply(plan)
             with open(join(td.dirname, 'subdir', 'unit.tests.')) as fh:
@@ -280,10 +286,10 @@ cname       42 IN CNAME    target.unit.tests.
 
 @ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
     484950 ; Serial
-    3600       ; Refresh (1 hour)
-    600        ; Retry (10 minutes)
-    604800     ; Expire (1 week)
-    3600       ; NXDOMAIN ttl (1 hour)
+    3601 ; Refresh (1 hour)
+    601 ; Retry (10 minutes)
+    604801 ; Expire (1 week)
+    3601 ; NXDOMAIN ttl (1 hour)
 )
 
 @         43 IN NS       ns1.unit.tests.

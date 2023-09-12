@@ -118,6 +118,13 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         # replaced with a `.`.
         # (default: webmaster)
         hostmaster_email: webmaster
+
+        # The details of the SOA record can be customized when creating
+        # zonefiles with the following options.
+        refresh: 3600
+        retry: 600
+        expire: 604800
+        nxdomain: 3600
     '''
 
     def __init__(
@@ -127,21 +134,33 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         file_extension='.',
         check_origin=True,
         hostmaster_email='webmaster',
+        refresh=3600,
+        retry=600,
+        expire=604800,
+        nxdomain=3600,
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(
-            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s',
+            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s, refresh=%d, retry=%d, expire=%d, nxdomain=%d',
             id,
             directory,
             file_extension,
             check_origin,
             hostmaster_email,
+            refresh,
+            retry,
+            expire,
+            nxdomain,
         )
         super().__init__(id)
         self.directory = directory
         self.file_extension = file_extension
         self.check_origin = check_origin
         self.hostmaster_email = hostmaster_email
+        self.refresh = refresh
+        self.retry = retry
+        self.expire = expire
+        self.nxdomain = nxdomain
 
         self._zone_records = {}
 
@@ -243,10 +262,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
 @ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
     $serial ; Serial
-    3600       ; Refresh (1 hour)
-    600        ; Retry (10 minutes)
-    604800     ; Expire (1 week)
-    3600       ; NXDOMAIN ttl (1 hour)
+    $refresh ; Refresh (1 hour)
+    $retry ; Retry (10 minutes)
+    $expire ; Expire (1 week)
+    $nxdomain ; NXDOMAIN ttl (1 hour)
 )
 
 '''
@@ -261,6 +280,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                         'zone_name': name,
                         'default_ttl': 3600,
                         'primary_nameserver': primary_nameserver,
+                        'refresh': self.refresh,
+                        'retry': self.retry,
+                        'expire': self.expire,
+                        'nxdomain': self.nxdomain,
                     }
                 )
             )
