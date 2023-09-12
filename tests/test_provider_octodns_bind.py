@@ -210,10 +210,10 @@ class TestZoneFileSource(TestCase):
 
 @ 3600 IN SOA ns.unit.tests. webmaster.unit.tests. (
     424344 ; Serial
-    3600 ; Refresh (1 hour)
-    600 ; Retry (10 minutes)
-    604800 ; Expire (1 week)
-    3600 ; NXDOMAIN ttl (1 hour)
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
 )
 
 cname       42 IN CNAME    target.unit.tests.
@@ -250,10 +250,10 @@ cname       42 IN CNAME    target.unit.tests.
 
 @ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
     454647 ; Serial
-    3600 ; Refresh (1 hour)
-    600 ; Retry (10 minutes)
-    604800 ; Expire (1 week)
-    3600 ; NXDOMAIN ttl (1 hour)
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
 )
 
 @           44 IN A        1.2.3.4
@@ -287,10 +287,10 @@ cname       42 IN CNAME    target.unit.tests.
 
 @ 3602 IN SOA ns1.unit.tests. webmaster.unit.tests. (
     484950 ; Serial
-    3601 ; Refresh (1 hour)
-    601 ; Retry (10 minutes)
-    604801 ; Expire (1 week)
-    3601 ; NXDOMAIN ttl (1 hour)
+    3601 ; Refresh
+    601 ; Retry
+    604801 ; Expire
+    3601 ; NXDOMAIN ttl
 )
 
 @         43 IN NS       ns1.unit.tests.

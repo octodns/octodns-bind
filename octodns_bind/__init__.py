@@ -266,10 +266,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
 @ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
     $serial ; Serial
-    $refresh ; Refresh (1 hour)
-    $retry ; Retry (10 minutes)
-    $expire ; Expire (1 week)
-    $nxdomain ; NXDOMAIN ttl (1 hour)
+    $refresh ; Refresh
+    $retry ; Retry
+    $expire ; Expire
+    $nxdomain ; NXDOMAIN ttl
 )
 
 '''
