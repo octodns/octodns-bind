@@ -3,8 +3,9 @@
 #
 
 import socket
-from os.path import exists
-from shutil import copyfile
+from os.path import exists, join
+from shutil import copyfile, rmtree
+from tempfile import mkdtemp
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -12,7 +13,8 @@ import dns.resolver
 import dns.zone
 from dns.exception import DNSException
 
-from octodns.record import Record, Rr, ValidationError
+from octodns.provider.plan import Plan
+from octodns.record import Create, Record, Rr, ValidationError
 from octodns.zone import Zone
 
 from octodns_bind import (
@@ -20,10 +22,26 @@ from octodns_bind import (
     AxfrSourceZoneTransferFailed,
     Rfc2136Provider,
     Rfc2136ProviderUpdateFailed,
+    ZoneFileProvider,
     ZoneFileSource,
     ZoneFileSourceLoadFailure,
     ZoneFileSourceNotFound,
 )
+
+
+class TemporaryDirectory(object):
+    def __init__(self, delete_on_exit=True):
+        self.delete_on_exit = delete_on_exit
+
+    def __enter__(self):
+        self.dirname = mkdtemp()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self.delete_on_exit:
+            rmtree(self.dirname)
+        else:
+            raise Exception(self.dirname)
 
 
 class TestAxfrSource(TestCase):
@@ -159,6 +177,245 @@ class TestZoneFileSource(TestCase):
         self.assertEqual(
             ['2.0.192.in-addr.arpa.', 'unit.tests.'], list(source.list_zones())
         )
+
+    @patch('octodns_bind.ZoneFileProvider._serial')
+    def test_apply(self, serial_mock):
+        serial_mock.side_effect = [424344, 454647, 484950]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+
+            # no root NS
+            desired = Zone('unit.tests.', [])
+
+            # populate as a target, shouldn't find anything, file wouldn't even
+            # exist
+            provider.populate(desired, target=True)
+            self.assertEqual(0, len(desired.records))
+
+            cname = Record.new(
+                desired,
+                'cname',
+                {'type': 'CNAME', 'ttl': 42, 'value': 'target.unit.tests.'},
+            )
+            desired.add_record(cname)
+
+            changes = [Create(cname)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                self.assertEqual(
+                    '''$ORIGIN unit.tests.
+
+@ 3600 IN SOA ns.unit.tests. webmaster.unit.tests. (
+    424344 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+cname       42 IN CNAME    target.unit.tests.
+''',
+                    fh.read(),
+                )
+
+            # add a subdirectory
+            provider.directory += '/subdir'
+
+            # with a NS this time
+            ns = Record.new(
+                desired,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 43,
+                    'values': ('ns1.unit.tests.', 'ns2.unit.tests.'),
+                },
+            )
+            desired.add_record(ns)
+            # and a second record with the same name (apex)
+            a = Record.new(
+                desired, '', {'type': 'A', 'ttl': 44, 'value': '1.2.3.4'}
+            )
+            desired.add_record(a)
+
+            plan.changes = [Create(a), Create(ns)] + plan.changes
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'subdir', 'unit.tests.')) as fh:
+                self.assertEqual(
+                    '''$ORIGIN unit.tests.
+
+@ 3600 IN SOA ns1.unit.tests. webmaster.unit.tests. (
+    454647 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+@           44 IN A        1.2.3.4
+            43 IN NS       ns1.unit.tests.
+            43 IN NS       ns2.unit.tests.
+cname       42 IN CNAME    target.unit.tests.
+''',
+                    fh.read(),
+                )
+
+            # TXT record rrdata's are quoted
+            txt = Record.new(
+                desired,
+                'txt',
+                {'type': 'TXT', 'ttl': 45, 'value': 'hello " world'},
+            )
+            desired.add_record(txt)
+
+            # test out customizing the SOA details
+            provider.default_ttl = 3602
+            provider.refresh = 3601
+            provider.retry = 601
+            provider.expire = 604801
+            provider.nxdomain = 3601
+
+            plan.changes = [Create(txt), Create(ns)]
+            provider._apply(plan)
+            with open(join(td.dirname, 'subdir', 'unit.tests.')) as fh:
+                self.assertEqual(
+                    '''$ORIGIN unit.tests.
+
+@ 3602 IN SOA ns1.unit.tests. webmaster.unit.tests. (
+    484950 ; Serial
+    3601 ; Refresh
+    601 ; Retry
+    604801 ; Expire
+    3601 ; NXDOMAIN ttl
+)
+
+@         43 IN NS       ns1.unit.tests.
+          43 IN NS       ns2.unit.tests.
+txt       45 IN TXT      "hello \\" world"
+''',
+                    fh.read(),
+                )
+
+    def test_primary_nameserver(self):
+        # no records (thus no root NS records) we get the placeholder
+        self.assertEqual(
+            'ns.unit.tests.', self.source._primary_nameserver('unit.tests.', [])
+        )
+
+        class FakeNsRecord:
+            def __init__(self, name, values):
+                self.name = name
+                self.values = values
+                self._type = 'NS'
+
+        # has non-root NS record, placeholder
+        self.assertEqual(
+            'ns.unit.tests.',
+            self.source._primary_nameserver(
+                'unit.tests.', [FakeNsRecord('not-root', ['xx.unit.tests.'])]
+            ),
+        )
+
+        # has root NS record
+        self.assertEqual(
+            'ns1.unit.tests.',
+            self.source._primary_nameserver(
+                'unit.tests.',
+                [
+                    FakeNsRecord('not-root', ['xx.unit.tests.']),
+                    FakeNsRecord('', ['ns1.unit.tests.', 'ns2.unit.tests.']),
+                ],
+            ),
+        )
+
+    def test_hostmaster_email(self):
+        # default constructed
+        self.assertEqual(
+            'webmaster.unit.tests.',
+            self.source._hostmaster_email('unit.tests.'),
+        )
+
+        # overridden just username
+        source = ZoneFileProvider('test', '.', hostmaster_email='altusername')
+        self.assertEqual(
+            'altusername.unit.tests.', source._hostmaster_email('unit.tests.')
+        )
+
+        # overridden username with .
+        source = ZoneFileProvider('test', '.', hostmaster_email='alt.username')
+        self.assertEqual(
+            'alt\\.username.other.tests.',
+            source._hostmaster_email('other.tests.'),
+        )
+
+        # overridden full email addr
+        source = ZoneFileProvider(
+            'test', '.', hostmaster_email='root@some.com.'
+        )
+        self.assertEqual(
+            'root.some.com.', source._hostmaster_email('ignored.tests.')
+        )
+
+        # overridden full email addr no trailing .
+        source = ZoneFileProvider('test', '.', hostmaster_email='root@some.com')
+        self.assertEqual(
+            'root.some.com', source._hostmaster_email('ignored.tests.')
+        )
+
+    def test_longest_name(self):
+        # make sure empty doesn't blow up and we get 0
+        self.assertEqual(0, self.source._longest_name([]))
+
+        class FakeRecord:
+            def __init__(self, name):
+                self.name = name
+
+        self.assertEqual(
+            4,
+            self.source._longest_name(
+                [
+                    FakeRecord(''),
+                    FakeRecord('1'),
+                    FakeRecord('12'),
+                    FakeRecord('123'),
+                    FakeRecord('1234'),
+                ]
+            ),
+        )
+
+    @patch('octodns_bind.ZoneFileProvider._now')
+    def test_serial(self, now_mock):
+        class FakeDatetime:
+            def __init__(self, timestamp):
+                self._timestamp = timestamp
+
+            def timestamp(self):
+                return self._timestamp
+
+        now_mock.side_effect = [
+            # simple
+            FakeDatetime(42),
+            # real
+            FakeDatetime(1694231210),
+            # max
+            FakeDatetime(2147483647),
+            # max + 1
+            FakeDatetime(2147483647 + 1),
+            # max + 2
+            FakeDatetime(2147483647 + 2),
+        ]
+        self.assertEqual(42, self.source._serial())
+        self.assertEqual(1694231210, self.source._serial())
+        self.assertEqual(0, self.source._serial())
+        self.assertEqual(1, self.source._serial())
+
+    def test_now(self):
+        # smoke test
+        self.assertTrue(self.source._now())
 
 
 class TestRfc2136Provider(TestCase):
