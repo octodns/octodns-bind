@@ -1,4 +1,4 @@
-## v0.0.5 - 2023-??-?? - ???
+## v0.0.5 - 2023-09-12 - Write that which we can read
 
 - ZoneFileProvider, full support writing zone files out to disk
 - ZoneFileSource.list_zones added to support dynamic zone config
