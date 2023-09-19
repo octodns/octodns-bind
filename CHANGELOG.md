@@ -1,3 +1,9 @@
+## v0.0.6 - 2023-??-?? - ???
+
+- `ZoneFileProvider` assumes zone files don't exist when used as a
+  target. This avoids the need to `--force` root NS changes when
+  re-writing files.
+
 ## v0.0.5 - 2023-09-12 - Write that which we can read
 
 - ZoneFileProvider, full support writing zone files out to disk
