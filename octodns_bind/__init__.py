@@ -66,6 +66,11 @@ class RfcPopulate:
             'populate:   found %s records', len(zone.records) - before
         )
 
+        if target:
+            # When acting as a target we ignore any existing records so that we
+            # create a completely new copy
+            return False
+
         return self.zone_exists(zone)
 
 
