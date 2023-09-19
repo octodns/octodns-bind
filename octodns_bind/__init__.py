@@ -66,7 +66,7 @@ class RfcPopulate:
             'populate:   found %s records', len(zone.records) - before
         )
 
-        return self.zone_exists(zone)
+        return self.zone_exists(zone, target)
 
 
 class ZoneFileSourceException(Exception):
@@ -175,15 +175,6 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                     filename = filename[:-n]
                 yield filename
 
-    def populate(self, zone, target=False, lenient=False):
-        ret = super().populate(zone, target, lenient)
-
-        if target:
-            # When acting as a target we ignore any existing records so that we
-            # create a completely new copy
-            return False
-        return ret
-
     def _load_zone_file(self, zone_name, target):
         if target:
             # if we're in target mode we assume nothing exists b/c we recreate
@@ -208,7 +199,12 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
         return z
 
-    def zone_exists(self, zone):
+    def zone_exists(self, zone, target=False):
+        if target:
+            # When acting as a target we ignore any existing records so that we
+            # create a completely new copy
+            return False
+
         zone_filename = f'{zone.name[:-1]}{self.file_extension}'
         return exists(join(self.directory, zone_filename))
 
@@ -404,7 +400,7 @@ class AxfrPopulate(RfcPopulate):
             params['keyalgorithm'] = self.key_algorithm
         return params
 
-    def zone_exists(self, zone):
+    def zone_exists(self, zone, target=False):
         # We can't create them so they have to already exist
         return True
 
