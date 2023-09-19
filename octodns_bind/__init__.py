@@ -66,11 +66,6 @@ class RfcPopulate:
             'populate:   found %s records', len(zone.records) - before
         )
 
-        if target:
-            # When acting as a target we ignore any existing records so that we
-            # create a completely new copy
-            return False
-
         return self.zone_exists(zone)
 
 
@@ -179,6 +174,15 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 if n > 0:
                     filename = filename[:-n]
                 yield filename
+
+    def populate(self, zone, target=False, lenient=False):
+        ret = super().populate(zone, target, lenient)
+
+        if target:
+            # When acting as a target we ignore any existing records so that we
+            # create a completely new copy
+            return False
+        return ret
 
     def _load_zone_file(self, zone_name, target):
         if target:
