@@ -136,6 +136,52 @@ zone "exxampled.com." {
 Any server that supports RFC compliant AXFR and RFC 2136 should work here. If
 you have a need for support of other auth mechinism please open an issue.
 
+#### ZoneFileProvider
+
+A provider that reads and writes [Bind9](https://www.isc.org/bind/) compliant zone files
+
+```
+providers:
+  zonefile:
+    class: octodns_bind.ZoneFileProvider
+
+    # The location of zone files. Records are defined in a
+    # file named for the zone in this directory, e.g.
+    # something.com., including the trailing ., see `file_extension` below
+    # (required)
+    directory: ./config
+
+    # The extension to use when working with zone files. It is appended onto
+    # the zone name to determine the file when reading or writing
+    # records. Some operating systems do not allow filenames ending with a .
+    # and this value may need to be changed when working on them, e.g. to
+    # .zone. The leading . should be included.
+    # (default: .)
+    file_extension: .
+
+    # Wether the provider should check for the existence a root NS record
+    # when loading a zone
+    # (default: true)
+    check_origin: true
+
+    # The email username or full address to be used when creating zonefiles.
+    # If this is just a username, no @[domain.com.], the current zone name
+    # will be appended to this value. If the value is a complete email
+    # address it will be used as-is. Note that the actual email address with
+    # a @ should be used and not the zone file format with the value
+    # replaced with a `.`.
+    # (default: webmaster)
+    hostmaster_email: webmaster
+
+    # The details of the SOA record can be customized when creating
+    # zonefiles with the following options.
+    default_ttl: 3600
+    refresh: 3600
+    retry: 600
+    expire: 604800
+    nxdomain: 3600
+```
+
 ### Support Information
 
 #### Records
