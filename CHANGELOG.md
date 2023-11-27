@@ -3,6 +3,7 @@
 - `ZoneFileProvider` assumes zone files don't exist when used as a
   target. This avoids the need to `--force` root NS changes when
   re-writing files.
+- Fix list_zones behavior with file_extension=''
 
 ## v0.0.5 - 2023-09-12 - Write that which we can read
 

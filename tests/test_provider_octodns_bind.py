@@ -167,15 +167,27 @@ class TestZoneFileSource(TestCase):
         self.assertEqual(12, len(invalid.records))
 
     def test_list_zones(self):
-        source = ZoneFileSource('test', './tests/zones', file_extension='.tst')
+        source = ZoneFileSource('test', './tests/zones')
+        self.assertEqual(
+            ['2.0.192.in-addr.arpa.', 'unit.tests.'], list(source.list_zones())
+        )
+
+    @patch('octodns_bind.listdir')
+    def test_list_zones_empty_extension(self, listdir_mock):
+        listdir_mock.side_effect = [
+            ('invalid.records', 'invalid.zone', 'unit.tests')
+        ]
+        source = ZoneFileSource('test', './tests/zones', file_extension='')
         self.assertEqual(
             ['invalid.records.', 'invalid.zone.', 'unit.tests.'],
             list(source.list_zones()),
         )
 
-        source = ZoneFileSource('test', './tests/zones')
+    def test_list_zones_custon_extension(self):
+        source = ZoneFileSource('test', './tests/zones', file_extension='.tst')
         self.assertEqual(
-            ['2.0.192.in-addr.arpa.', 'unit.tests.'], list(source.list_zones())
+            ['invalid.records.', 'invalid.zone.', 'unit.tests.'],
+            list(source.list_zones()),
         )
 
     @patch('octodns_bind.ZoneFileProvider._serial')
