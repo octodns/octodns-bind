@@ -22,6 +22,14 @@ from octodns.provider.base import BaseProvider
 from octodns.record import Create, Record, Rr, Update
 from octodns.source.base import BaseSource
 
+# TODO: remove once we require python >= 3.11
+try:  # pragma: no cover
+    from datetime import UTC
+except ImportError:  # pragma: no cover
+    from datetime import timedelta, timezone
+
+    UTC = timezone(timedelta())
+
 # TODO: remove __VERSION__ with the next major version release
 __version__ = __VERSION__ = '0.0.5'
 
@@ -252,7 +260,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
             return 0
 
     def _now(self):
-        return datetime.utcnow()
+        return datetime.now(UTC)
 
     def _serial(self):
         # things wrap/reset at max int
