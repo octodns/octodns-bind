@@ -1,4 +1,4 @@
-## v0.0.6 - 2023-??-?? - ???
+## v0.0.6 - 2024-01-30 - Known your zones
 
 - `ZoneFileProvider` assumes zone files don't exist when used as a
   target. This avoids the need to `--force` root NS changes when
