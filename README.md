@@ -116,8 +116,8 @@ providers:
 Example Bind9 config to enable AXFR and RFC 2136
 
 ```
-# generated with rndc-confgen
-key octodns.exxampled.com. {
+# generated with: $ tsig-keygen octodns.exxampled.com.
+key "octodns.exxampled.com." {
   algorithm hmac-sha256;
   secret "vZew5TtZLTZKTCl00xliGt+1zzsuLWQWFz48bRbPnZU=";
 };
