@@ -148,6 +148,8 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         retry=600,
         expire=604800,
         nxdomain=3600,
+        *args,
+        **kwargs,
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(
@@ -163,7 +165,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
             expire,
             nxdomain,
         )
-        super().__init__(id)
+        super().__init__(id, *args, **kwargs)
         self.directory = directory
         self.file_extension = file_extension
         self.check_origin = check_origin
@@ -360,6 +362,8 @@ class AxfrPopulate(RfcPopulate):
         key_name=None,
         key_secret=None,
         key_algorithm=None,
+        *args,
+        **kwargs,
     ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
@@ -373,7 +377,7 @@ class AxfrPopulate(RfcPopulate):
             key_secret is not None,
             key_algorithm is not None,
         )
-        super().__init__(id)
+        super().__init__(id, *args, **kwargs)
         self.host = self._host(host, ipv6)
         self.port = int(port)
         self.ipv6 = ipv6

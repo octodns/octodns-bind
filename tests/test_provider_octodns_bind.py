@@ -378,6 +378,13 @@ txt       45 IN TXT      "hello \\" world"
             'root.some.com', source._hostmaster_email('ignored.tests.')
         )
 
+        # ensure inheritance from base provider
+        source = ZoneFileProvider(
+            'test', '.', update_pcent_threshold=0.9, delete_pcent_threshold=0.8
+        )
+        self.assertEqual(0.9, source.update_pcent_threshold)
+        self.assertEqual(0.8, source.delete_pcent_threshold)
+
     def test_longest_name(self):
         # make sure empty doesn't blow up and we get 0
         self.assertEqual(0, self.source._longest_name([]))
@@ -434,6 +441,17 @@ class TestRfc2136Provider(TestCase):
     def test_host_ip(self):
         provider = Rfc2136Provider('test', '192.0.2.1')
         self.assertEqual('192.0.2.1', provider.host)
+
+    def test_provider_configuration(self):
+        # test configuration inherits functionality from the base provider
+        provider = Rfc2136Provider(
+            'test',
+            '192.0.2.1',
+            update_pcent_threshold=0.9,
+            delete_pcent_threshold=0.8,
+        )
+        self.assertEqual(0.9, provider.update_pcent_threshold)
+        self.assertEqual(0.8, provider.delete_pcent_threshold)
 
     @patch('socket.getaddrinfo')
     def test_host_dns(self, resolve_mock):

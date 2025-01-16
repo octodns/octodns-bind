@@ -1,3 +1,7 @@
+## v0.0.7 - 2025-??-?? - ???
+
+- Add support for Provider base class parameters
+
 ## v0.0.6 - 2024-01-30 - Known your zones
 
 - `ZoneFileProvider` assumes zone files don't exist when used as a
