@@ -149,7 +149,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         expire=604800,
         nxdomain=3600,
         *args,
-        **kwargs
+        **kwargs,
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(

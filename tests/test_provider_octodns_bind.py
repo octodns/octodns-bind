@@ -377,7 +377,7 @@ txt       45 IN TXT      "hello \\" world"
         self.assertEqual(
             'root.some.com', source._hostmaster_email('ignored.tests.')
         )
-        
+
         # ensure inheritance from base provider
         source = ZoneFileProvider(
             'test', '.', update_pcent_threshold=0.9, delete_pcent_threshold=0.8
@@ -444,7 +444,12 @@ class TestRfc2136Provider(TestCase):
 
     def test_provider_configuration(self):
         # test configuration inherits functionality from the base provider
-        provider = Rfc2136Provider('test', '192.0.2.1', update_pcent_threshold=0.9, delete_pcent_threshold=0.8)
+        provider = Rfc2136Provider(
+            'test',
+            '192.0.2.1',
+            update_pcent_threshold=0.9,
+            delete_pcent_threshold=0.8,
+        )
         self.assertEqual(0.9, provider.update_pcent_threshold)
         self.assertEqual(0.8, provider.delete_pcent_threshold)
 
