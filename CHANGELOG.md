@@ -1,4 +1,4 @@
-## v0.0.7 - 2025-??-?? - ???
+## v0.0.7 - 2025-01-17 - Back to the base
 
 - Add support for Provider base class parameters
 
