@@ -320,9 +320,8 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 for value in values:
                     value = value.rdata_text
                     if record._type in ('SPF', 'TXT'):
-                        # TXT values need to be quoted
-                        value = value.replace('"', '\\"')
-                        value = f'"{value}"'
+                        # TXT values need to be quoted and split if longer than 255 characters
+                        value = record.chunked_value(value)
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''

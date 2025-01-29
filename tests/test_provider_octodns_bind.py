@@ -190,6 +190,31 @@ class TestZoneFileSource(TestCase):
             list(source.list_zones()),
         )
 
+    def test_split_long_txt_record(self):
+        long_txt = 'a' * 300
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            desired = Zone('unit.tests.', [])
+
+            txt_record = Record.new(
+                desired,
+                'longtxt',
+                {'type': 'TXT', 'ttl': 42, 'value': long_txt},
+            )
+            desired.add_record(txt_record)
+
+            changes = [Create(txt_record)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+                expected_split = f'"{"a" * 255}" "{"a" * 45}"'
+                self.assertIn(
+                    f'longtxt       42 IN TXT      {expected_split}', content
+                )
+
     @patch('octodns_bind.ZoneFileProvider._serial')
     def test_apply(self, serial_mock):
         serial_mock.side_effect = [424344, 454647, 484950]
