@@ -17,6 +17,9 @@ services:
       - type: bind
         source: ./docker/var/lib/bind/db.exxampled.com
         target: /var/lib/bind/db.exxampled.com
+      - type: bind
+        source: ./docker/var/lib/bind/db.xn--fa-hia.de.
+        target: /var/lib/bind/db.xn--fa-hia.de.
 networks:
   dns:
     enable_ipv6: true
