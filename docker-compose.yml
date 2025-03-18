@@ -1,5 +1,3 @@
-version: "2.4"  # optional since v1.27.0
-
 services:
   bind9:
     # https://hub.docker.com/r/internetsystemsconsortium/bind9
