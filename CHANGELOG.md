@@ -1,6 +1,7 @@
 ## v0.0.8 - 20??-??-?? - ???
 
 - Split long TXT values using chunked_value before writing
+- When writing RFC2317 zones, convert "/" to "-" in the filename.
 
 ## v0.0.7 - 2025-01-17 - Back to the base
 

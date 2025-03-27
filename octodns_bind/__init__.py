@@ -278,7 +278,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         records = sorted(c.record for c in plan.changes)
         longest_name = self._longest_name(records)
 
-        filename = join(self.directory, f'{name[:-1]}{self.file_extension}')
+        filename = join(
+            self.directory,
+            f'{name[:-1].replace("/", "-")}{self.file_extension}',
+        )
         with open(filename, 'w') as fh:
             template = Template(
                 '''$$ORIGIN $zone_name
