@@ -395,6 +395,60 @@ xn--dj-vu-sqa5d       45 IN TXT      "hello world"
                     fh.read(),
                 )
 
+    @patch("octodns_bind.ZoneFileProvider._serial")
+    def test_apply_rfc2317(self, serial_mock):
+        serial_mock.side_effect = [424344, 454647, 484950]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider(
+                "target", td.dirname, hostmaster_email='webmaster@unit.tests.'
+            )
+
+            # no root NS
+            desired = Zone("0/25.10.10.10.in-addr.arpa.", [])
+
+            # populate as a target, shouldn't find anything, file wouldn't even
+            # exist
+            provider.populate(desired, target=True)
+            self.assertEqual(0, len(desired.records))
+
+            ns_record = Record.new(
+                desired,
+                "",
+                {"type": "NS", "ttl": 42, "value": "ns.unit.tests."},
+            )
+            desired.add_record(ns_record)
+
+            ptr = Record.new(
+                desired,
+                "10",
+                {"type": "PTR", "ttl": 42, "value": "target.unit.tests."},
+            )
+            desired.add_record(ptr)
+
+            changes = [Create(ptr), Create(ns_record)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, "0-25.10.10.10.in-addr.arpa.")) as fh:
+                self.assertEqual(
+                    """$ORIGIN 0/25.10.10.10.in-addr.arpa.
+
+@ 3600 IN SOA ns.unit.tests. webmaster.unit.tests. (
+    424344 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+; Name: 0/25.10.10.10.in-addr.arpa.
+@        42 IN NS       ns.unit.tests.
+10       42 IN PTR      target.unit.tests.
+""",
+                    fh.read(),
+                )
+
     def test_primary_nameserver(self):
         # no records (thus no root NS records) we get the placeholder
         self.assertEqual(

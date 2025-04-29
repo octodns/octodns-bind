@@ -3,6 +3,7 @@
 - Split long TXT values using chunked_value before writing
 - Correctly handle utf-8 names and zones by writing out idna encoded values and
   using idna encoded filenames
+- When writing RFC2317 zones, convert "/" to "-" in the filename.
 
 ## v0.0.7 - 2025-01-17 - Back to the base
 

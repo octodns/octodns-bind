@@ -278,7 +278,10 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         longest_name = self._longest_name(records)
 
         name = desired.name
-        filename = join(self.directory, f'{name[:-1]}{self.file_extension}')
+        filename = join(
+            self.directory,
+            f'{name[:-1].replace("/", "-")}{self.file_extension}',
+        )
         with open(filename, 'w') as fh:
             fh.write(f'$ORIGIN {name}\n\n')
             utf8_name = desired.decoded_name
