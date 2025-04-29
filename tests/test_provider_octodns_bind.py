@@ -293,6 +293,7 @@ cname       42 IN CNAME    target.unit.tests.
     3600 ; NXDOMAIN ttl
 )
 
+; Name: unit.tests.
 @           44 IN A        1.2.3.4
             43 IN NS       ns1.unit.tests.
             43 IN NS       ns2.unit.tests.
@@ -330,9 +331,66 @@ cname       42 IN CNAME    target.unit.tests.
     3601 ; NXDOMAIN ttl
 )
 
+; Name: unit.tests.
 @         43 IN NS       ns1.unit.tests.
           43 IN NS       ns2.unit.tests.
 txt       45 IN TXT      "hello \\" world"
+''',
+                    fh.read(),
+                )
+
+    @patch('octodns_bind.ZoneFileProvider._serial')
+    def test_utf8(self, serial_mock):
+        serial_mock.side_effect = [424344]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+
+            desired = Zone('faß.de.', [])
+
+            ns = Record.new(
+                desired,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 43,
+                    'values': ('ns1.xn--fa-hia.de.', 'ns2.xn--fa-hia.de.'),
+                },
+            )
+            desired.add_record(ns)
+
+            # utf-8 zone name
+            txt = Record.new(
+                desired,
+                # utf-8 name
+                'déjà-vu',
+                {'type': 'TXT', 'ttl': 45, 'value': 'hello world'},
+            )
+            desired.add_record(txt)
+
+            changes = [Create(txt), Create(ns)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+            # file written out with idna name
+            with open(join(td.dirname, 'xn--fa-hia.de.')) as fh:
+                self.maxDiff = 99999
+                self.assertEqual(
+                    '''$ORIGIN xn--fa-hia.de.
+
+; Zone name: faß.de.
+@ 3600 IN SOA ns1.xn--fa-hia.de. webmaster.xn--fa-hia.de. (
+    424344 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+; Name: faß.de.
+@                     43 IN NS       ns1.xn--fa-hia.de.
+                      43 IN NS       ns2.xn--fa-hia.de.
+; Name: déjà-vu.faß.de.
+xn--dj-vu-sqa5d       45 IN TXT      "hello world"
 ''',
                     fh.read(),
                 )
@@ -384,6 +442,7 @@ txt       45 IN TXT      "hello \\" world"
     3600 ; NXDOMAIN ttl
 )
 
+; Name: 0/25.10.10.10.in-addr.arpa.
 @        42 IN NS       ns.unit.tests.
 10       42 IN PTR      target.unit.tests.
 """,

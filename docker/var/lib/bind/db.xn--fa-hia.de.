@@ -1,0 +1,18 @@
+$ORIGIN xn--fa-hia.de.
+
+; Zone name: faß.de. / xn--fa-hia.de.
+@ 3600 IN SOA ns1.xn--fa-hia.de. webmaster.xn--fa-hia.de. (
+    1742254963 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+; Name: faß.de.
+@                  86400 IN MX       10 mx.xn--fa-hia.de.
+                   86400 IN NS       ns1.xn--fa-hia.de.
+mx                 86400 IN A        127.0.0.1
+ns1                86400 IN A        127.0.0.1
+; Name: déjà-vu.faß.de.
+xn--dj-vu-sqa5d    86400 IN A        127.0.0.1

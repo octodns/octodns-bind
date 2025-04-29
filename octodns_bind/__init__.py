@@ -270,7 +270,6 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
     def _apply(self, plan):
         desired = plan.desired
-        name = desired.decoded_name
 
         if not isdir(self.directory):
             makedirs(self.directory)
@@ -278,15 +277,18 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         records = sorted(c.record for c in plan.changes)
         longest_name = self._longest_name(records)
 
+        name = desired.name
         filename = join(
             self.directory,
             f'{name[:-1].replace("/", "-")}{self.file_extension}',
         )
         with open(filename, 'w') as fh:
+            fh.write(f'$ORIGIN {name}\n\n')
+            utf8_name = desired.decoded_name
+            if name != utf8_name:
+                fh.write(f'; Zone name: {utf8_name}\n')
             template = Template(
-                '''$$ORIGIN $zone_name
-
-@ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
+                '''@ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
     $serial ; Serial
     $refresh ; Refresh
     $retry ; Retry
@@ -321,15 +323,18 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 except AttributeError:
                     values = [record.value]
                 for value in values:
-                    value = value.rdata_text
-                    if record._type in ('SPF', 'TXT'):
-                        # TXT values need to be quoted and split if longer than 255 characters
-                        value = record.chunked_value(value)
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''
                     else:
                         prev_name = name
+                        if name != record.decoded_name:
+                            # idna encoded, add a comment with the utf8 version
+                            fh.write(f'; Name: {record.decoded_fqdn}\n')
+                    value = value.rdata_text
+                    if record._type in ('SPF', 'TXT'):
+                        # TXT values need to be quoted and split if longer than 255 characters
+                        value = record.chunked_value(value)
                     fh.write(
                         f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} {value}\n'
                     )

@@ -1,5 +1,3 @@
-version: "2.4"  # optional since v1.27.0
-
 services:
   bind9:
     # https://hub.docker.com/r/internetsystemsconsortium/bind9
@@ -17,6 +15,9 @@ services:
       - type: bind
         source: ./docker/var/lib/bind/db.exxampled.com
         target: /var/lib/bind/db.exxampled.com
+      - type: bind
+        source: ./docker/var/lib/bind/db.xn--fa-hia.de.
+        target: /var/lib/bind/db.xn--fa-hia.de.
 networks:
   dns:
     enable_ipv6: true
