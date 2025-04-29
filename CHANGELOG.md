@@ -1,4 +1,4 @@
-## v0.0.8 - 20??-??-?? - ???
+## v1.0.0 - 2025-04-29 - Long overdue 1.0
 
 - Split long TXT values using chunked_value before writing
 - Correctly handle utf-8 names and zones by writing out idna encoded values and

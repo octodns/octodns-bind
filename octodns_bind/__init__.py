@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover
     UTC = timezone(timedelta())
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '0.0.7'
+__version__ = __VERSION__ = '1.0.0'
 
 
 class RfcPopulate:
