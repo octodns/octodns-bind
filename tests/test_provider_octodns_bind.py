@@ -190,6 +190,31 @@ class TestZoneFileSource(TestCase):
             list(source.list_zones()),
         )
 
+    def test_split_long_txt_record(self):
+        long_txt = 'a' * 300
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            desired = Zone('unit.tests.', [])
+
+            txt_record = Record.new(
+                desired,
+                'longtxt',
+                {'type': 'TXT', 'ttl': 42, 'value': long_txt},
+            )
+            desired.add_record(txt_record)
+
+            changes = [Create(txt_record)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+                expected_split = f'"{"a" * 255}" "{"a" * 45}"'
+                self.assertIn(
+                    f'longtxt       42 IN TXT      {expected_split}', content
+                )
+
     @patch('octodns_bind.ZoneFileProvider._serial')
     def test_apply(self, serial_mock):
         serial_mock.side_effect = [424344, 454647, 484950]
@@ -268,6 +293,7 @@ cname       42 IN CNAME    target.unit.tests.
     3600 ; NXDOMAIN ttl
 )
 
+; Name: unit.tests.
 @           44 IN A        1.2.3.4
             43 IN NS       ns1.unit.tests.
             43 IN NS       ns2.unit.tests.
@@ -305,10 +331,121 @@ cname       42 IN CNAME    target.unit.tests.
     3601 ; NXDOMAIN ttl
 )
 
+; Name: unit.tests.
 @         43 IN NS       ns1.unit.tests.
           43 IN NS       ns2.unit.tests.
 txt       45 IN TXT      "hello \\" world"
 ''',
+                    fh.read(),
+                )
+
+    @patch('octodns_bind.ZoneFileProvider._serial')
+    def test_utf8(self, serial_mock):
+        serial_mock.side_effect = [424344]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+
+            desired = Zone('faß.de.', [])
+
+            ns = Record.new(
+                desired,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 43,
+                    'values': ('ns1.xn--fa-hia.de.', 'ns2.xn--fa-hia.de.'),
+                },
+            )
+            desired.add_record(ns)
+
+            # utf-8 zone name
+            txt = Record.new(
+                desired,
+                # utf-8 name
+                'déjà-vu',
+                {'type': 'TXT', 'ttl': 45, 'value': 'hello world'},
+            )
+            desired.add_record(txt)
+
+            changes = [Create(txt), Create(ns)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+            # file written out with idna name
+            with open(join(td.dirname, 'xn--fa-hia.de.')) as fh:
+                self.maxDiff = 99999
+                self.assertEqual(
+                    '''$ORIGIN xn--fa-hia.de.
+
+; Zone name: faß.de.
+@ 3600 IN SOA ns1.xn--fa-hia.de. webmaster.xn--fa-hia.de. (
+    424344 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+; Name: faß.de.
+@                     43 IN NS       ns1.xn--fa-hia.de.
+                      43 IN NS       ns2.xn--fa-hia.de.
+; Name: déjà-vu.faß.de.
+xn--dj-vu-sqa5d       45 IN TXT      "hello world"
+''',
+                    fh.read(),
+                )
+
+    @patch("octodns_bind.ZoneFileProvider._serial")
+    def test_apply_rfc2317(self, serial_mock):
+        serial_mock.side_effect = [424344, 454647, 484950]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider(
+                "target", td.dirname, hostmaster_email='webmaster@unit.tests.'
+            )
+
+            # no root NS
+            desired = Zone("0/25.10.10.10.in-addr.arpa.", [])
+
+            # populate as a target, shouldn't find anything, file wouldn't even
+            # exist
+            provider.populate(desired, target=True)
+            self.assertEqual(0, len(desired.records))
+
+            ns_record = Record.new(
+                desired,
+                "",
+                {"type": "NS", "ttl": 42, "value": "ns.unit.tests."},
+            )
+            desired.add_record(ns_record)
+
+            ptr = Record.new(
+                desired,
+                "10",
+                {"type": "PTR", "ttl": 42, "value": "target.unit.tests."},
+            )
+            desired.add_record(ptr)
+
+            changes = [Create(ptr), Create(ns_record)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, "0-25.10.10.10.in-addr.arpa.")) as fh:
+                self.assertEqual(
+                    """$ORIGIN 0/25.10.10.10.in-addr.arpa.
+
+@ 3600 IN SOA ns.unit.tests. webmaster.unit.tests. (
+    424344 ; Serial
+    3600 ; Refresh
+    600 ; Retry
+    604800 ; Expire
+    3600 ; NXDOMAIN ttl
+)
+
+; Name: 0/25.10.10.10.in-addr.arpa.
+@        42 IN NS       ns.unit.tests.
+10       42 IN PTR      target.unit.tests.
+""",
                     fh.read(),
                 )
 
@@ -378,6 +515,13 @@ txt       45 IN TXT      "hello \\" world"
             'root.some.com', source._hostmaster_email('ignored.tests.')
         )
 
+        # ensure inheritance from base provider
+        source = ZoneFileProvider(
+            'test', '.', update_pcent_threshold=0.9, delete_pcent_threshold=0.8
+        )
+        self.assertEqual(0.9, source.update_pcent_threshold)
+        self.assertEqual(0.8, source.delete_pcent_threshold)
+
     def test_longest_name(self):
         # make sure empty doesn't blow up and we get 0
         self.assertEqual(0, self.source._longest_name([]))
@@ -434,6 +578,17 @@ class TestRfc2136Provider(TestCase):
     def test_host_ip(self):
         provider = Rfc2136Provider('test', '192.0.2.1')
         self.assertEqual('192.0.2.1', provider.host)
+
+    def test_provider_configuration(self):
+        # test configuration inherits functionality from the base provider
+        provider = Rfc2136Provider(
+            'test',
+            '192.0.2.1',
+            update_pcent_threshold=0.9,
+            delete_pcent_threshold=0.8,
+        )
+        self.assertEqual(0.9, provider.update_pcent_threshold)
+        self.assertEqual(0.8, provider.delete_pcent_threshold)
 
     @patch('socket.getaddrinfo')
     def test_host_dns(self, resolve_mock):

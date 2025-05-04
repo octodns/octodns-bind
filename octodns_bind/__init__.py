@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover
     UTC = timezone(timedelta())
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '0.0.6'
+__version__ = __VERSION__ = '1.0.0'
 
 
 class RfcPopulate:
@@ -148,6 +148,8 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         retry=600,
         expire=604800,
         nxdomain=3600,
+        *args,
+        **kwargs,
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(
@@ -163,7 +165,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
             expire,
             nxdomain,
         )
-        super().__init__(id)
+        super().__init__(id, *args, **kwargs)
         self.directory = directory
         self.file_extension = file_extension
         self.check_origin = check_origin
@@ -268,7 +270,6 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
     def _apply(self, plan):
         desired = plan.desired
-        name = desired.decoded_name
 
         if not isdir(self.directory):
             makedirs(self.directory)
@@ -276,12 +277,18 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         records = sorted(c.record for c in plan.changes)
         longest_name = self._longest_name(records)
 
-        filename = join(self.directory, f'{name[:-1]}{self.file_extension}')
+        name = desired.name
+        filename = join(
+            self.directory,
+            f'{name[:-1].replace("/", "-")}{self.file_extension}',
+        )
         with open(filename, 'w') as fh:
+            fh.write(f'$ORIGIN {name}\n\n')
+            utf8_name = desired.decoded_name
+            if name != utf8_name:
+                fh.write(f'; Zone name: {utf8_name}\n')
             template = Template(
-                '''$$ORIGIN $zone_name
-
-@ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
+                '''@ $default_ttl IN SOA $primary_nameserver $hostmaster_email (
     $serial ; Serial
     $refresh ; Refresh
     $retry ; Retry
@@ -316,16 +323,18 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 except AttributeError:
                     values = [record.value]
                 for value in values:
-                    value = value.rdata_text
-                    if record._type in ('SPF', 'TXT'):
-                        # TXT values need to be quoted
-                        value = value.replace('"', '\\"')
-                        value = f'"{value}"'
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''
                     else:
                         prev_name = name
+                        if name != record.decoded_name:
+                            # idna encoded, add a comment with the utf8 version
+                            fh.write(f'; Name: {record.decoded_fqdn}\n')
+                    value = value.rdata_text
+                    if record._type in ('SPF', 'TXT'):
+                        # TXT values need to be quoted and split if longer than 255 characters
+                        value = record.chunked_value(value)
                     fh.write(
                         f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} {value}\n'
                     )
@@ -360,6 +369,8 @@ class AxfrPopulate(RfcPopulate):
         key_name=None,
         key_secret=None,
         key_algorithm=None,
+        *args,
+        **kwargs,
     ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
         self.log.debug(
@@ -373,7 +384,7 @@ class AxfrPopulate(RfcPopulate):
             key_secret is not None,
             key_algorithm is not None,
         )
-        super().__init__(id)
+        super().__init__(id, *args, **kwargs)
         self.host = self._host(host, ipv6)
         self.port = int(port)
         self.ipv6 = ipv6

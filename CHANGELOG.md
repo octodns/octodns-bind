@@ -1,3 +1,14 @@
+## v1.0.0 - 2025-04-29 - Long overdue 1.0
+
+- Split long TXT values using chunked_value before writing
+- Correctly handle utf-8 names and zones by writing out idna encoded values and
+  using idna encoded filenames
+- When writing RFC2317 zones, convert "/" to "-" in the filename.
+
+## v0.0.7 - 2025-01-17 - Back to the base
+
+- Add support for Provider base class parameters
+
 ## v0.0.6 - 2024-01-30 - Known your zones
 
 - `ZoneFileProvider` assumes zone files don't exist when used as a
