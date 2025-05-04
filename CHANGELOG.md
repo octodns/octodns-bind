@@ -1,3 +1,7 @@
+## v1.0.1 - 2025-05-04 - Up our requirements
+
+* Require octodns >= 1.5.0
+
 ## v1.0.0 - 2025-04-29 - Long overdue 1.0
 
 - Split long TXT values using chunked_value before writing
