@@ -369,6 +369,7 @@ class AxfrPopulate(RfcPopulate):
         key_name=None,
         key_secret=None,
         key_algorithm=None,
+        max_changes=1000,
         *args,
         **kwargs,
     ):
@@ -392,6 +393,7 @@ class AxfrPopulate(RfcPopulate):
         self.key_name = key_name
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
+        self.max_changes = max_changes
 
     def _host(self, host, ipv6):
         h = host
@@ -479,8 +481,9 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
         desired = plan.desired
         auth_params = self._auth_params()
         update = DnsUpdate(desired.name, **auth_params)
-
+        i = 0
         for change in plan.changes:
+            i += 1
             record = change.record
 
             name, ttl, _type, rdatas = record.rrs
@@ -491,9 +494,23 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             else:  # isinstance(change, Delete):
                 update.delete(name, _type, *rdatas)
 
+            if i == self.max_changes:
+                # RFC-2136 doesn't allow more than 500 records in a single
+                # update, so we send it now and start a new one
+                self.log.debug(
+                    '_apply: zone=%s, num_records=%d', desired.name, i
+                )
+                r: dns.message.Message = dns.query.tcp(
+                    update, self.host, port=self.port, timeout=self.timeout
+                )
+                if r.rcode() != dns.rcode.NOERROR:
+                    raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
+                update = DnsUpdate(desired.name, **auth_params)
+                i = 0
+        
         r: dns.message.Message = dns.query.tcp(
-            update, self.host, port=self.port, timeout=self.timeout
-        )
+                    update, self.host, port=self.port, timeout=self.timeout
+                )
         if r.rcode() != dns.rcode.NOERROR:
             raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
 
