@@ -1,0 +1,7 @@
+[console_scripts]
+octodns-compare = octodns.cmds.compare:main
+octodns-dump = octodns.cmds.dump:main
+octodns-report = octodns.cmds.report:main
+octodns-sync = octodns.cmds.sync:main
+octodns-validate = octodns.cmds.validate:main
+octodns-versions = octodns.cmds.versions:main
