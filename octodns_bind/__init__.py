@@ -369,6 +369,7 @@ class AxfrPopulate(RfcPopulate):
         key_name=None,
         key_secret=None,
         key_algorithm=None,
+        update_batch_size=1000,
         *args,
         **kwargs,
     ):
@@ -392,6 +393,7 @@ class AxfrPopulate(RfcPopulate):
         self.key_name = key_name
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
+        self.update_batch_size = update_batch_size
 
     def _host(self, host, ipv6):
         h = host
@@ -451,6 +453,10 @@ class AxfrPopulate(RfcPopulate):
 
         return records
 
+    def _batch_changes(self, changes):
+        for i in range(0, len(changes), self.update_batch_size):
+            yield changes[i : i + self.update_batch_size]
+
 
 class AxfrSource(AxfrPopulate, BaseSource):
     pass
@@ -478,27 +484,32 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
     def _apply(self, plan):
         desired = plan.desired
         auth_params = self._auth_params()
-        update = DnsUpdate(desired.name, **auth_params)
 
-        for change in plan.changes:
-            record = change.record
+        for batch in self._batch_changes(plan.changes):
+            update = DnsUpdate(desired.name, **auth_params)
 
-            name, ttl, _type, rdatas = record.rrs
-            if isinstance(change, Create):
-                update.add(name, ttl, _type, *rdatas)
-            elif isinstance(change, Update):
-                update.replace(name, ttl, _type, *rdatas)
-            else:  # isinstance(change, Delete):
-                update.delete(name, _type, *rdatas)
+            for change in batch:
+                record = change.record
+                name, ttl, _type, rdatas = record.rrs
 
-        r: dns.message.Message = dns.query.tcp(
-            update, self.host, port=self.port, timeout=self.timeout
-        )
-        if r.rcode() != dns.rcode.NOERROR:
-            raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
+                if isinstance(change, Create):
+                    update.add(name, ttl, _type, *rdatas)
+                elif isinstance(change, Update):
+                    update.replace(name, ttl, _type, *rdatas)
+                else:  # isinstance(change, Delete):
+                    update.delete(name, _type, *rdatas)
+
+            self.log.debug(
+                '_apply: zone=%s, num_records=%d', desired.name, len(batch)
+            )
+            r: dns.message.Message = dns.query.tcp(
+                update, self.host, port=self.port, timeout=self.timeout
+            )
+            if r.rcode() != dns.rcode.NOERROR:
+                raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
 
         self.log.debug(
-            '_apply: zone=%s, num_records=%d', name, len(plan.changes)
+            '_apply: zone=%s, total_changes=%d', desired.name, len(plan.changes)
         )
 
         return True
