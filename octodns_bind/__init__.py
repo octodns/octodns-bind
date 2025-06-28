@@ -46,6 +46,7 @@ class RfcPopulate:
             'AAAA',
             'CAA',
             'CNAME',
+            'DS',
             'LOC',
             'MX',
             'NS',
