@@ -337,6 +337,28 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                     if record._type in ('SPF', 'TXT'):
                         # TXT values need to be quoted and split if longer than 255 characters
                         value = record.chunked_value(value)
+                    elif record._type == 'NAPTR':
+                        # NAPTR records need flags, service, and regexp fields quoted
+                        # Format: order preference flags service regexp replacement
+                        # Note: empty regexp field may not appear in rdata_text split
+                        parts = value.split()
+                        if len(parts) >= 5:
+                            order = parts[0]
+                            preference = parts[1]
+                            flags = f'"{parts[2]}"'
+                            service = f'"{parts[3]}"'
+
+                            # Handle the case where regexp might be empty and not present in split
+                            if len(parts) == 5:
+                                # No regexp field in split (empty regexp), replacement is parts[4]
+                                regexp = '""'
+                                replacement = parts[4]
+                            else:
+                                # Regexp field present, replacement is parts[5:]
+                                regexp = f'"{parts[4]}"'
+                                replacement = ' '.join(parts[5:])
+
+                            value = f'{order} {preference} {flags} {service} {regexp} {replacement}'
                     fh.write(
                         f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} {value}\n'
                     )

@@ -573,6 +573,195 @@ xn--dj-vu-sqa5d       45 IN TXT      "hello world"
         # smoke test
         self.assertTrue(self.source._now())
 
+    @patch('octodns_bind.ZoneFileProvider._serial')
+    def test_naptr_record_formatting(self, serial_mock):
+        """Test that NAPTR records are properly formatted with quoted fields"""
+        serial_mock.side_effect = [424344]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            desired = Zone('unit.tests.', [])
+
+            # Test NAPTR record with empty regexp
+            naptr_empty_regexp = Record.new(
+                desired,
+                'sip1',
+                {
+                    'type': 'NAPTR',
+                    'ttl': 300,
+                    'value': {
+                        'order': 10,
+                        'preference': 20,
+                        'flags': 'S',
+                        'service': 'SIP+D2U',
+                        'regexp': '',
+                        'replacement': '_sip._udp.unit.tests.',
+                    },
+                },
+            )
+            desired.add_record(naptr_empty_regexp)
+
+            # Test NAPTR record with non-empty regexp
+            naptr_with_regexp = Record.new(
+                desired,
+                'sip2',
+                {
+                    'type': 'NAPTR',
+                    'ttl': 600,
+                    'value': {
+                        'order': 20,
+                        'preference': 30,
+                        'flags': 'U',
+                        'service': 'E2U+sip',
+                        'regexp': '!^.*$!sip:info@unit.tests!',
+                        'replacement': '.',
+                    },
+                },
+            )
+            desired.add_record(naptr_with_regexp)
+
+            # Test NAPTR record with complex service field
+            naptr_complex = Record.new(
+                desired,
+                'enum',
+                {
+                    'type': 'NAPTR',
+                    'ttl': 900,
+                    'value': {
+                        'order': 100,
+                        'preference': 10,
+                        'flags': 'U',
+                        'service': 'E2U+tel',
+                        'regexp': '!^(.*)$!tel:\\1!',
+                        'replacement': '.',
+                    },
+                },
+            )
+            desired.add_record(naptr_complex)
+
+            changes = [
+                Create(naptr_empty_regexp),
+                Create(naptr_with_regexp),
+                Create(naptr_complex),
+            ]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+
+                # Check that all NAPTR records are properly formatted
+                self.assertIn(
+                    'sip1      300 IN NAPTR    10 20 "S" "SIP+D2U" "" _sip._udp.unit.tests.',
+                    content,
+                )
+                self.assertIn(
+                    'sip2      600 IN NAPTR    20 30 "U" "E2U+sip" "!^.*$!sip:info@unit.tests!" .',
+                    content,
+                )
+                self.assertIn(
+                    'enum      900 IN NAPTR    100 10 "U" "E2U+tel" "!^(.*)$!tel:\\1!" .',
+                    content,
+                )
+
+                # Verify that flags, service, and regexp fields are quoted
+                naptr_lines = [
+                    line for line in content.split('\n') if 'NAPTR' in line
+                ]
+                self.assertEqual(3, len(naptr_lines))
+
+                for line in naptr_lines:
+                    # Each NAPTR line should have at least 6 quoted strings (flags, service, regexp)
+                    # Even empty regexp should be quoted as ""
+                    quote_count = line.count('"')
+                    self.assertGreaterEqual(
+                        quote_count,
+                        6,
+                        f"NAPTR line should have at least 6 quotes: {line}",
+                    )
+
+    def test_naptr_record_with_non_empty_regexp_coverage(self):
+        """Test coverage for NAPTR records with non-empty regexp (len(parts) > 5)"""
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            desired = Zone('unit.tests.', [])
+
+            # Test NAPTR record that will have 6+ parts when split (non-empty regexp)
+            naptr_with_regexp = Record.new(
+                desired,
+                'test',
+                {
+                    'type': 'NAPTR',
+                    'ttl': 300,
+                    'value': {
+                        'order': 10,
+                        'preference': 20,
+                        'flags': 'U',
+                        'service': 'E2U+sip',
+                        'regexp': '!^(.*)$!sip:\\1@example.com!',
+                        'replacement': '.',
+                    },
+                },
+            )
+            desired.add_record(naptr_with_regexp)
+
+            changes = [Create(naptr_with_regexp)]
+            plan = Plan(None, desired, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+
+                # This should cover the else branch where len(parts) != 5
+                # (i.e., len(parts) > 5 because regexp is not empty)
+                self.assertIn(
+                    'test      300 IN NAPTR    10 20 "U" "E2U+sip" "!^(.*)$!sip:\\1@example.com!" .',
+                    content,
+                )
+
+    def test_naptr_malformed_record_coverage(self):
+        """Test coverage for malformed NAPTR records with insufficient parts"""
+        from unittest.mock import Mock
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            desired = Zone('unit.tests.', [])
+
+            # Create a mock record that simulates a malformed NAPTR with < 5 parts
+            class MockRecord:
+                def __init__(self):
+                    self.name = 'malformed'
+                    self.decoded_name = 'malformed'
+                    self.decoded_fqdn = 'malformed.unit.tests.'
+                    self._type = 'NAPTR'
+                    self.ttl = 300
+
+                @property
+                def values(self):
+                    return [MockValue()]
+
+            class MockValue:
+                @property
+                def rdata_text(self):
+                    return "10 20"  # Only 2 parts, should trigger len(parts) < 5 branch
+
+            class MockChange:
+                def __init__(self):
+                    self.record = MockRecord()
+
+            # Create a plan with the malformed record
+            plan = Mock()
+            plan.desired = desired
+            plan.changes = [MockChange()]
+
+            # This should test the missing branch where len(parts) < 5
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+                # The malformed NAPTR should be written as-is without NAPTR-specific formatting
+                self.assertIn('malformed      300 IN NAPTR    10 20', content)
+
 
 class TestRfc2136Provider(TestCase):
     def test_host_ip(self):
