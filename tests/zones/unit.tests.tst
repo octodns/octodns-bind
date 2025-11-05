@@ -65,3 +65,8 @@ _25._tcp.mx2      IN TLSA 3 1 1 (
 ; DS Records
 @                 IN DS 12345 13 2 1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF
 sub               IN DS 15288 5  2 CE0EB9E59EE1DE2C681A330E3A7C08376F28602CDF990EE4EC88D2A8BDB51539
+
+; HTTPS and SVCB Records
+@                 IN HTTPS 0 example.com.
+sub               IN HTTPS 1 . ipv4hint=203.0.113.1 alpn="h3,h2"
+_8765._baz.api 300 IN SVCB 0 svc4-baz.unit.tests.
