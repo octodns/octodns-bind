@@ -64,7 +64,7 @@ class TestAxfrSource(TestCase):
         from_xfr_mock.side_effect = [self.forward_zonefile, DNSException]
 
         self.source.populate(got)
-        self.assertEqual(23, len(got.records))
+        self.assertEqual(24, len(got.records))
 
         with self.assertRaises(AxfrSourceZoneTransferFailed) as ctx:
             zone = Zone('unit.tests.', [])
@@ -125,18 +125,18 @@ class TestZoneFileSource(TestCase):
         # Load zonefiles without a specified file extension
         valid = Zone('unit.tests.', [])
         source.populate(valid)
-        self.assertEqual(23, len(valid.records))
+        self.assertEqual(24, len(valid.records))
 
     def test_populate(self):
         # Valid zone file in directory
         valid = Zone('unit.tests.', [])
         self.source.populate(valid)
-        self.assertEqual(23, len(valid.records))
+        self.assertEqual(24, len(valid.records))
 
         # 2nd populate does not read file again
         again = Zone('unit.tests.', [])
         self.source.populate(again)
-        self.assertEqual(23, len(again.records))
+        self.assertEqual(24, len(again.records))
 
         # bust the cache
         del self.source._zone_records[valid.name]
@@ -165,6 +165,45 @@ class TestZoneFileSource(TestCase):
         invalid = Zone('invalid.records.', [])
         self.source.populate(invalid, lenient=True)
         self.assertEqual(12, len(invalid.records))
+
+    def test_naptr_records(self):
+        # Test that NAPTR records are properly imported from zone files
+        zone = Zone('unit.tests.', [])
+        self.source.populate(zone)
+
+        # Find the NAPTR record by iterating through records
+        naptr_record = None
+        for record in zone.records:
+            if record.name == 'naptr' and record._type == 'NAPTR':
+                naptr_record = record
+                break
+
+        # Check that NAPTR record exists
+        self.assertIsNotNone(naptr_record, 'NAPTR record should be present')
+        self.assertEqual('NAPTR', naptr_record._type)
+        self.assertEqual(600, naptr_record.ttl)
+
+        # Verify we have 2 NAPTR values
+        self.assertEqual(2, len(naptr_record.values))
+
+        # Check the first NAPTR record values
+        values = sorted(naptr_record.values, key=lambda x: x['preference'])
+        first = values[0]
+        self.assertEqual(10, first['order'])
+        self.assertEqual(100, first['preference'])
+        self.assertEqual('U', first['flags'])
+        self.assertEqual('E2U+sip', first['service'])
+        self.assertEqual('!^.*$!sip:info@example.com!', first['regexp'])
+        self.assertEqual('.', first['replacement'])
+
+        # Check the second NAPTR record values
+        second = values[1]
+        self.assertEqual(10, second['order'])
+        self.assertEqual(101, second['preference'])
+        self.assertEqual('U', second['flags'])
+        self.assertEqual('E2U+email', second['service'])
+        self.assertEqual('!^.*$!mailto:info@example.com!', second['regexp'])
+        self.assertEqual('.', second['replacement'])
 
     def test_list_zones(self):
         source = ZoneFileSource('test', './tests/zones')

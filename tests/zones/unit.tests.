@@ -28,6 +28,10 @@ _srv._tcp   600   IN  SRV 10 20 30 foo-2.unit.tests.
 _pop3._tcp   600   IN  SRV 0 0 0 .
 _imap._tcp   600   IN  SRV 0 0 0 .
 
+; NAPTR Records
+naptr       600   IN  NAPTR 10 100 "U" "E2U+sip" "!^.*$!sip:info@example.com!" .
+naptr       600   IN  NAPTR 10 101 "U" "E2U+email" "!^.*$!mailto:info@example.com!" .
+
 ; TXT Records
 txt         600   IN  TXT "Bah bah black sheep"
 txt         600   IN  TXT "have you any wool."
