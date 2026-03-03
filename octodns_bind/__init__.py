@@ -49,6 +49,7 @@ class RfcPopulate:
             'DS',
             'LOC',
             'MX',
+            'NAPTR',
             'NS',
             'PTR',
             'SPF',
