@@ -4,9 +4,10 @@
 .env
 /build/
 /config/
+coverage.json
 coverage.xml
 dist/
 env/
 htmlcov/
 nosetests.xml
-octodns_*.egg-info/
+octodns_bind*.egg-info/

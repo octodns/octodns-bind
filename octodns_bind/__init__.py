@@ -47,6 +47,7 @@ class RfcPopulate:
             'CAA',
             'CNAME',
             'DS',
+            'HTTPS',
             'LOC',
             'MX',
             'NAPTR',
@@ -55,6 +56,7 @@ class RfcPopulate:
             'SPF',
             'SRV',
             'SSHFP',
+            'SVCB',
             'TLSA',
             'TXT',
         )

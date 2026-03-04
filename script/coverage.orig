@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get current script path
-SCRIPT_PATH="$(dirname -- "$(readlink -f -- "${0}")")"
+SCRIPT_PATH="$( dirname -- "$( readlink -f -- "${0}"; )"; )"
 # Activate OctoDNS Python venv
 source "${SCRIPT_PATH}/common.sh"
 
@@ -27,7 +27,6 @@ pytest \
   --cov=$SOURCE_DIR \
   --cov-fail-under=100 \
   --cov-report=html \
-  --cov-report=json \
   --cov-report=xml \
   --cov-report=term \
   --cov-branch \
