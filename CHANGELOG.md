@@ -1,3 +1,13 @@
+## 1.1.0 - 2026-04-03
+
+Minor:
+* enable NAPTR record processing - [#101](https://github.com/octodns/octodns-bind/pull/101)
+* Add HTTPS and SVCB record support - [#93](https://github.com/octodns/octodns-bind/pull/93)
+* Add NAPTR record support - [#86](https://github.com/octodns/octodns-bind/pull/86)
+
+Patch:
+* Use new [changelet](https://github.com/octodns/changelet) tooling - [#84](https://github.com/octodns/octodns-bind/pull/84)
+
 ## v1.0.1 - 2025-05-04 - Up our requirements
 
 * Require octodns >= 1.5.0
