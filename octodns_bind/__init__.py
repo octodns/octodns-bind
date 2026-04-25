@@ -138,6 +138,15 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         retry: 600
         expire: 604800
         nxdomain: 3600
+
+        # When acting as a target, also populate from the existing zone file on
+        # disk so octodns can produce empty plans for unchanged zones. The
+        # default (false) preserves the historical behavior of recreating
+        # everything every run. Opting in makes re-runs idempotent (no SOA
+        # serial bump when nothing changed) but the source records must match
+        # the existing apex NS, otherwise octodns will raise RootNsChange.
+        # (default: false)
+        read_existing: false
     '''
 
     def __init__(
@@ -152,12 +161,13 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         retry=600,
         expire=604800,
         nxdomain=3600,
+        read_existing=False,
         *args,
         **kwargs,
     ):
         self.log = getLogger(f'ZoneFileProvider[{id}]')
         self.log.debug(
-            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s, default_ttl=%d, refresh=%d, retry=%d, expire=%d, nxdomain=%d',
+            '__init__: id=%s, directory=%s, file_extension=%s, check_origin=%s, hostmaster_email=%s, default_ttl=%d, refresh=%d, retry=%d, expire=%d, nxdomain=%d, read_existing=%s',
             id,
             directory,
             file_extension,
@@ -168,6 +178,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
             retry,
             expire,
             nxdomain,
+            read_existing,
         )
         super().__init__(id, *args, **kwargs)
         self.directory = directory
@@ -179,6 +190,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         self.retry = retry
         self.expire = expire
         self.nxdomain = nxdomain
+        self.read_existing = read_existing
 
         self._zone_records = {}
 
@@ -191,7 +203,7 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 yield f'{filename}.'
 
     def _load_zone_file(self, zone_name, target):
-        if target:
+        if target and not self.read_existing:
             # if we're in target mode we assume nothing exists b/c we recreate
             # everything every time, similar to YamlProvider
             return None
@@ -209,13 +221,19 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                 )
             except DNSException as error:
                 raise ZoneFileSourceLoadFailure(error)
+        elif target:
+            # In target mode with read_existing, a missing zone file means
+            # there's no prior state to load - the zone will be created on
+            # first apply. This mirrors how YamlProvider treats a missing
+            # file when used as a target.
+            return None
         else:
             raise ZoneFileSourceNotFound(path)
 
         return z
 
     def zone_exists(self, zone, target=False):
-        if target:
+        if target and not self.read_existing:
             # When acting as a target we ignore any existing records so that we
             # create a completely new copy
             return False
