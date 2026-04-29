@@ -180,6 +180,15 @@ providers:
     retry: 600
     expire: 604800
     nxdomain: 3600
+
+    # When acting as a target, also populate from the existing zone file on
+    # disk so octodns can produce empty plans for unchanged zones. The
+    # default (false) preserves the historical behavior of recreating
+    # everything every run. Opting in makes re-runs idempotent (no SOA
+    # serial bump when nothing changed) but the source records must match
+    # the existing apex NS, otherwise octodns will raise RootNsChange.
+    # (default: false)
+    read_existing: false
 ```
 
 ### Support Information

@@ -190,6 +190,42 @@ class TestZoneFileSource(TestCase):
             list(source.list_zones()),
         )
 
+    def test_populate_target_read_existing(self):
+        # Default (read_existing=False): target populate returns nothing and
+        # zone_exists lies about the zone not existing, preserving the
+        # historical recreate-everything-every-run behavior introduced in #42
+        # and #44.
+        default_provider = ZoneFileProvider('test', './tests/zones')
+        zone = Zone('unit.tests.', [])
+        exists = default_provider.populate(zone, target=True)
+        self.assertEqual(0, len(zone.records))
+        self.assertFalse(exists)
+        self.assertFalse(default_provider.zone_exists(zone, target=True))
+
+        # read_existing=True: target populate reads back the existing zone
+        # file so octodns can produce empty plans for unchanged zones, and
+        # zone_exists reflects the real on-disk state.
+        opt_in_provider = ZoneFileProvider(
+            'test', './tests/zones', read_existing=True
+        )
+        zone = Zone('unit.tests.', [])
+        exists = opt_in_provider.populate(zone, target=True)
+        self.assertEqual(23, len(zone.records))
+        self.assertTrue(exists)
+        self.assertTrue(opt_in_provider.zone_exists(zone, target=True))
+
+        # read_existing=True with a missing zone file: treated as empty
+        # existing state (no error) so a new zone can still be created.
+        with TemporaryDirectory() as td:
+            empty_provider = ZoneFileProvider(
+                'test', td.dirname, read_existing=True
+            )
+            zone = Zone('does-not-exist.', [])
+            exists = empty_provider.populate(zone, target=True)
+            self.assertEqual(0, len(zone.records))
+            self.assertFalse(exists)
+            self.assertFalse(empty_provider.zone_exists(zone, target=True))
+
     def test_split_long_txt_record(self):
         long_txt = 'a' * 300
 
