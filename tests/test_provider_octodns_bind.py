@@ -14,7 +14,7 @@ import dns.zone
 from dns.exception import DNSException
 
 from octodns.provider.plan import Plan
-from octodns.record import Create, Record, Rr, ValidationError
+from octodns.record import Create, Record, Rr, Update, ValidationError
 from octodns.zone import Zone
 
 from octodns_bind import (
@@ -241,7 +241,7 @@ class TestZoneFileSource(TestCase):
             desired.add_record(txt_record)
 
             changes = [Create(txt_record)]
-            plan = Plan(None, desired, changes, True)
+            plan = Plan(Zone(desired.name, []), desired, changes, True)
             provider._apply(plan)
 
             with open(join(td.dirname, 'unit.tests.')) as fh:
@@ -274,7 +274,7 @@ class TestZoneFileSource(TestCase):
             desired.add_record(cname)
 
             changes = [Create(cname)]
-            plan = Plan(None, desired, changes, True)
+            plan = Plan(Zone(desired.name, []), desired, changes, True)
             provider._apply(plan)
 
             with open(join(td.dirname, 'unit.tests.')) as fh:
@@ -376,6 +376,106 @@ txt       45 IN TXT      "hello \\" world"
                 )
 
     @patch('octodns_bind.ZoneFileProvider._serial')
+    def test_apply_read_existing_preserves_unchanged_records(self, serial_mock):
+        # Regression: with read_existing=True, _apply must rewrite the zone
+        # file from the full desired state, not just plan.changes. Otherwise
+        # a partial-change run truncates the on-disk zone to SOA + the diff,
+        # which drops apex NS and every unchanged record (bind then refuses
+        # to load the resulting zone).
+        serial_mock.side_effect = [111111, 222222]
+
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider(
+                'target', td.dirname, read_existing=True
+            )
+            zone_name = 'unit.tests.'
+
+            # First run: create a zone with apex NS + two A records.
+            desired_v1 = Zone(zone_name, [])
+            ns = Record.new(
+                desired_v1,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 3600,
+                    'values': ['ns1.unit.tests.', 'ns2.unit.tests.'],
+                },
+            )
+            unchanged = Record.new(
+                desired_v1,
+                'unchanged',
+                {'type': 'A', 'ttl': 3600, 'value': '1.2.3.4'},
+            )
+            bar_v1 = Record.new(
+                desired_v1,
+                'bar',
+                {'type': 'A', 'ttl': 3600, 'value': '5.6.7.8'},
+            )
+            for r in (ns, unchanged, bar_v1):
+                desired_v1.add_record(r)
+
+            existing_empty = Zone(zone_name, [])
+            plan = Plan(
+                existing_empty,
+                desired_v1,
+                [Create(ns), Create(unchanged), Create(bar_v1)],
+                True,
+            )
+            provider._apply(plan)
+
+            # Second run: only `bar` changes. NS and `unchanged` stay put.
+            # Reload existing from disk to mirror real read_existing flow.
+            existing = Zone(zone_name, [])
+            provider.populate(existing, target=True)
+
+            desired_v2 = Zone(zone_name, [])
+            ns2 = Record.new(
+                desired_v2,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 3600,
+                    'values': ['ns1.unit.tests.', 'ns2.unit.tests.'],
+                },
+            )
+            unchanged2 = Record.new(
+                desired_v2,
+                'unchanged',
+                {'type': 'A', 'ttl': 3600, 'value': '1.2.3.4'},
+            )
+            bar_v2 = Record.new(
+                desired_v2,
+                'bar',
+                {'type': 'A', 'ttl': 3600, 'value': '9.10.11.12'},
+            )
+            for r in (ns2, unchanged2, bar_v2):
+                desired_v2.add_record(r)
+
+            old_bar = next(
+                r
+                for r in existing.records
+                if r.name == 'bar' and r._type == 'A'
+            )
+            plan = Plan(existing, desired_v2, [Update(old_bar, bar_v2)], True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                content = fh.read()
+
+            # Apex NS must be preserved (it wasn't in plan.changes).
+            self.assertIn('IN NS       ns1.unit.tests.', content)
+            self.assertIn('IN NS       ns2.unit.tests.', content)
+            # Unchanged record must be preserved.
+            self.assertIn('1.2.3.4', content)
+            # New value of bar must be present.
+            self.assertIn('9.10.11.12', content)
+            # And the SOA primary nameserver must come from the real apex NS,
+            # not the `ns.<zone>` placeholder _primary_nameserver falls back
+            # to when records is empty of NS.
+            self.assertIn('SOA ns1.unit.tests.', content)
+            self.assertNotIn(f'SOA ns.{zone_name}', content)
+
+    @patch('octodns_bind.ZoneFileProvider._serial')
     def test_utf8(self, serial_mock):
         serial_mock.side_effect = [424344]
 
@@ -405,7 +505,7 @@ txt       45 IN TXT      "hello \\" world"
             desired.add_record(txt)
 
             changes = [Create(txt), Create(ns)]
-            plan = Plan(None, desired, changes, True)
+            plan = Plan(Zone(desired.name, []), desired, changes, True)
             provider._apply(plan)
             # file written out with idna name
             with open(join(td.dirname, 'xn--fa-hia.de.')) as fh:
@@ -463,7 +563,7 @@ xn--dj-vu-sqa5d       45 IN TXT      "hello world"
             desired.add_record(ptr)
 
             changes = [Create(ptr), Create(ns_record)]
-            plan = Plan(None, desired, changes, True)
+            plan = Plan(Zone(desired.name, []), desired, changes, True)
             provider._apply(plan)
 
             with open(join(td.dirname, "0-25.10.10.10.in-addr.arpa.")) as fh:
