@@ -296,7 +296,17 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         if not isdir(self.directory):
             makedirs(self.directory)
 
-        records = sorted(c.record for c in plan.changes)
+        # make a copy of existing we can muck with
+        copy = plan.existing.copy()
+        changes = plan.changes
+        self.log.debug(
+            '_apply: zone=%s, len(changes)=%d', copy.decoded_name, len(changes)
+        )
+
+        # apply our pending changes to that copy
+        copy.apply(changes)
+
+        records = sorted(copy.records)
         longest_name = self._longest_name(records)
 
         name = desired.name
