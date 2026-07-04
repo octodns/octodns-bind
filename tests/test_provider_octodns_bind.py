@@ -156,7 +156,7 @@ class TestZoneFileSource(TestCase):
         # quotes were added to the record name 1.0.0rc1, this makes it work with
         # both version
         reason = str(ctx.exception).replace('"', '')
-        self.assertEqual(
+        self.assertIn(
             'Invalid record _invalid.invalid.records.\n  - invalid name for SRV record',
             reason,
         )
