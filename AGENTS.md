@@ -39,5 +39,5 @@ All classes are implemented in the package root: [octodns_bind/__init__.py](file
 
 ## Key Constraints & Behaviors
 
-- **Python Version**: Targets Python `>=3.9`.
+- **Python Version**: Targets Python `>=3.10`.
 - **Formatting**: Code formatting is enforced via `black` (version `>=26.0.0,<27.0.0`) and `isort`.

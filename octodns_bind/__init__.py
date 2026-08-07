@@ -19,7 +19,7 @@ from dns.exception import DNSException
 from dns.update import Update as DnsUpdate
 
 from octodns.provider.base import BaseProvider
-from octodns.record import Create, Record, Rr, Update
+from octodns.record import Create, Record, Rrset, Update
 from octodns.source.base import BaseSource
 
 # TODO: remove once we require python >= 3.11
@@ -71,8 +71,8 @@ class RfcPopulate:
         )
 
         before = len(zone.records)
-        rrs = self.zone_records(zone, target=target)
-        for record in Record.from_rrs(zone, rrs, lenient=lenient):
+        rrsets = self.zone_records(zone, target=target)
+        for record in Record.from_rrsets(zone, rrsets, lenient=lenient):
             zone.add_record(record, lenient=lenient)
 
         self.log.info(
@@ -245,16 +245,21 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
         if zone.name not in self._zone_records:
             z = self._load_zone_file(zone.name, target)
 
-            records = []
+            rrsets = []
             if z:
-                for name, ttl, rdata in z.iterate_rdatas():
-                    rdtype = dns.rdatatype.to_text(rdata.rdtype)
+                for name, rdataset in z.iterate_rdatasets():
+                    rdtype = dns.rdatatype.to_text(rdataset.rdtype)
                     if rdtype in self.SUPPORTS:
-                        records.append(
-                            Rr(name.to_text(), rdtype, ttl, rdata.to_text())
+                        rrsets.append(
+                            Rrset(
+                                name.to_text(),
+                                rdtype,
+                                rdataset.ttl,
+                                [rdata.to_text() for rdata in rdataset],
+                            )
                         )
 
-            self._zone_records[zone.name] = records
+            self._zone_records[zone.name] = rrsets
 
         return self._zone_records[zone.name]
 
@@ -350,11 +355,8 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
 
             prev_name = None
             for record in records:
-                try:
-                    values = record.values
-                except AttributeError:
-                    values = [record.value]
-                for value in values:
+                rrset = record.to_rrset()
+                for rdata in rrset.rdatas:
                     name = '@' if record.name == '' else record.name
                     if name == prev_name:
                         name = ''
@@ -363,12 +365,8 @@ class ZoneFileProvider(RfcPopulate, BaseProvider):
                         if name != record.decoded_name:
                             # idna encoded, add a comment with the utf8 version
                             fh.write(f'; Name: {record.decoded_fqdn}\n')
-                    value = value.rdata_text
-                    if record._type in ('SPF', 'TXT'):
-                        # TXT values need to be quoted and split if longer than 255 characters
-                        value = record.chunked_value(value)
                     fh.write(
-                        f'{name:<{longest_name}} {record.ttl:8d} IN {record._type:<8} {value}\n'
+                        f'{name:<{longest_name}} {rrset.ttl:8d} IN {rrset._type:<8} {rdata}\n'
                     )
 
         self.log.debug(
@@ -476,14 +474,21 @@ class AxfrPopulate(RfcPopulate):
         except DNSException as err:
             raise AxfrSourceZoneTransferFailed(err) from None
 
-        records = []
+        rrsets = []
 
-        for name, ttl, rdata in z.iterate_rdatas():
-            rdtype = dns.rdatatype.to_text(rdata.rdtype)
+        for name, rdataset in z.iterate_rdatasets():
+            rdtype = dns.rdatatype.to_text(rdataset.rdtype)
             if rdtype in self.SUPPORTS:
-                records.append(Rr(name.to_text(), rdtype, ttl, rdata.to_text()))
+                rrsets.append(
+                    Rrset(
+                        name.to_text(),
+                        rdtype,
+                        rdataset.ttl,
+                        [rdata.to_text() for rdata in rdataset],
+                    )
+                )
 
-        return records
+        return rrsets
 
     def _batch_changes(self, changes):
         for i in range(0, len(changes), self.update_batch_size):
@@ -522,14 +527,18 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
 
             for change in batch:
                 record = change.record
-                name, ttl, _type, rdatas = record.rrs
+                rrset = record.to_rrset()
 
                 if isinstance(change, Create):
-                    update.add(name, ttl, _type, *rdatas)
+                    update.add(
+                        rrset.name, rrset.ttl, rrset._type, *rrset.rdatas
+                    )
                 elif isinstance(change, Update):
-                    update.replace(name, ttl, _type, *rdatas)
+                    update.replace(
+                        rrset.name, rrset.ttl, rrset._type, *rrset.rdatas
+                    )
                 else:  # isinstance(change, Delete):
-                    update.delete(name, _type, *rdatas)
+                    update.delete(rrset.name, rrset._type, *rrset.rdatas)
 
             self.log.debug(
                 '_apply: zone=%s, num_records=%d', desired.name, len(batch)

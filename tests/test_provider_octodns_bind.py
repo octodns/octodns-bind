@@ -14,7 +14,7 @@ import dns.zone
 from dns.exception import DNSException
 
 from octodns.provider.plan import Plan
-from octodns.record import Create, Record, Rr, Update, ValidationError
+from octodns.record import Create, Record, Rrset, Update, ValidationError
 from octodns.zone import Zone
 
 from octodns_bind import (
@@ -165,6 +165,44 @@ class TestZoneFileSource(TestCase):
         invalid = Zone('invalid.records.', [])
         self.source.populate(invalid, lenient=True)
         self.assertEqual(12, len(invalid.records))
+
+    def test_zone_records_groups_into_rrsets(self):
+        # zone_records() groups same name/type rdata into a single Rrset,
+        # rather than one Rr-per-rdata like the legacy API did
+        source = ZoneFileSource('test', './tests/zones', file_extension='.tst')
+        zone = Zone('unit.tests.', [])
+        rrsets = {
+            (rrset.name, rrset._type): rrset
+            for rrset in source.zone_records(zone, target=False)
+        }
+
+        mx = rrsets[('mx.unit.tests.', 'MX')]
+        self.assertIsInstance(mx, Rrset)
+        self.assertEqual(300, mx.ttl)
+        self.assertEqual(
+            [
+                '10 smtp-4.unit.tests.',
+                '20 smtp-2.unit.tests.',
+                '30 smtp-3.unit.tests.',
+                '40 smtp-1.unit.tests.',
+            ],
+            mx.rdatas,
+        )
+
+        txt = rrsets[('txt.unit.tests.', 'TXT')]
+        self.assertEqual(600, txt.ttl)
+        self.assertEqual(
+            [
+                '"Bah bah black sheep"',
+                '"have you any wool."',
+                '"v=DKIM1;k=rsa;s=email;h=sha256;p=A/kinda+of/long/string+with+numb3rs"',
+            ],
+            txt.rdatas,
+        )
+
+        # single-value types still come back as a one-element Rrset
+        cname = rrsets[('cname.unit.tests.', 'CNAME')]
+        self.assertEqual(['unit.tests.'], cname.rdatas)
 
     def test_list_zones(self):
         source = ZoneFileSource('test', './tests/zones')
@@ -812,7 +850,7 @@ class TestRfc2136Provider(TestCase):
         error_result.set_rcode(dns.rcode.REFUSED)
         dns_query_tcp_mock.return_value = error_result
         zone_records_mock.side_effect = [
-            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+            [Rrset('a.unit.tests.', 'A', 42, ['2.3.4.5'])]
         ]
         plan = provider.plan(desired)
         self.assertTrue(plan)
@@ -825,7 +863,7 @@ class TestRfc2136Provider(TestCase):
         # update
         reset()
         zone_records_mock.side_effect = [
-            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+            [Rrset('a.unit.tests.', 'A', 42, ['2.3.4.5'])]
         ]
         plan = provider.plan(desired)
         self.assertTrue(plan)
@@ -839,7 +877,7 @@ class TestRfc2136Provider(TestCase):
         reset()
         desired = Zone('unit.tests.', [])
         zone_records_mock.side_effect = [
-            [Rr('a.unit.tests.', 'A', 42, '2.3.4.5')]
+            [Rrset('a.unit.tests.', 'A', 42, ['2.3.4.5'])]
         ]
         plan = provider.plan(desired)
         self.assertTrue(plan)
