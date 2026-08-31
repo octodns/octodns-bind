@@ -946,8 +946,17 @@ class TestRfc2136Provider(TestCase):
         replace_mock.assert_not_called()
 
     @patch('dns.query.tcp')
-    @patch('octodns_bind.AxfrPopulate.zone_records')
-    def test_apply_failover(self, zone_records_mock, dns_query_tcp_mock):
+    @patch('dns.zone.from_xfr')
+    def test_apply_uses_pinned_host(self, from_xfr_mock, dns_query_tcp_mock):
+        # exercises the real plan -> apply cycle: populate() (called by
+        # plan()) does the AXFR that pins the host via _with_host(), so by
+        # the time _apply() runs the host is already pinned. This is the
+        # only way apply() is reached in normal operation -- unlike a test
+        # that mocks zone_records() directly, which can leave _host_pinned
+        # False and make apply() exercise a fallback that can't happen here.
+        zonefile = dns.zone.from_file(
+            './tests/zones/unit.tests.tst', 'unit.tests', relativize=False
+        )
         provider = Rfc2136Provider('test', '192.0.2.1')
         provider.hosts = ['192.0.2.1', '192.0.2.2']
 
@@ -957,35 +966,30 @@ class TestRfc2136Provider(TestCase):
         )
         desired.add_record(record)
 
-        # populate/plan against the first candidate pins it
-        zone_records_mock.side_effect = [[]]
-        plan = provider.plan(desired)
+        # the AXFR that plan() triggers succeeds against the first
+        # candidate, pinning it before apply() ever runs
+        from_xfr_mock.side_effect = [zonefile]
+        with patch('dns.query.xfr'):
+            plan = provider.plan(desired)
         self.assertTrue(plan)
+        self.assertTrue(provider._host_pinned)
+        self.assertEqual('192.0.2.1', provider.host)
 
-        # the pinned host's first apply attempt times out, falls back to the
-        # other candidate and pins it in turn
+        # apply() only ever talks to the pinned host, never the other
+        # candidate
         noerror = dns.message.Message()
-        dns_query_tcp_mock.side_effect = [DNSException('timed out'), noerror]
+        dns_query_tcp_mock.return_value = noerror
         provider.apply(plan)
-        self.assertEqual(2, dns_query_tcp_mock.call_count)
-        self.assertEqual(
-            '192.0.2.1', dns_query_tcp_mock.call_args_list[0].args[1]
-        )
-        self.assertEqual(
-            '192.0.2.2', dns_query_tcp_mock.call_args_list[1].args[1]
-        )
-        self.assertEqual('192.0.2.2', provider.host)
+        dns_query_tcp_mock.assert_called_once()
+        self.assertEqual('192.0.2.1', dns_query_tcp_mock.call_args.args[1])
 
-        # every candidate fails: raises rather than looping forever
-        zone_records_mock.side_effect = [[]]
-        plan = provider.plan(desired)
-        provider.hosts = ['192.0.2.1', '192.0.2.2']
-        provider._host_pinned = False
+        # a transport failure against the pinned host is fatal -- it is not
+        # retried against the other candidate, matching the pinned/no
+        # -fallback contract _with_host() is documented to provide
         dns_query_tcp_mock.reset_mock(side_effect=True)
-        dns_query_tcp_mock.side_effect = [
-            DNSException('timed out'),
-            DNSException('timed out'),
-        ]
+        dns_query_tcp_mock.side_effect = [DNSException('timed out')]
         with self.assertRaises(Rfc2136ProviderUpdateFailed):
             provider.apply(plan)
-        self.assertFalse(provider._host_pinned)
+        dns_query_tcp_mock.assert_called_once()
+        self.assertEqual('192.0.2.1', dns_query_tcp_mock.call_args.args[1])
+        self.assertEqual('192.0.2.1', provider.host)
