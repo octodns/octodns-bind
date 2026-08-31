@@ -7,7 +7,7 @@ from os.path import exists, join
 from shutil import copyfile, rmtree
 from tempfile import mkdtemp
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 import dns.resolver
 import dns.zone
@@ -70,9 +70,53 @@ class TestAxfrSource(TestCase):
             zone = Zone('unit.tests.', [])
             self.source.populate(zone)
         self.assertEqual(
-            'Unable to Perform Zone Transfer',
+            'Unable to Perform Zone Transfer for unit.tests.',
             str(ctx.exception).split(':', 1)[0],
         )
+
+    @patch('dns.zone.from_xfr')
+    def test_zone_records_failover(self, from_xfr_mock):
+        with patch('socket.getaddrinfo') as getaddrinfo_mock:
+            getaddrinfo_mock.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('192.0.2.1', 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('192.0.2.2', 0)),
+            ]
+            source = AxfrSource('test', 'axfr.unit.tests.')
+        self.assertEqual(['192.0.2.1', '192.0.2.2'], source.hosts)
+        self.assertFalse(source._host_pinned)
+
+        # first host fails, second succeeds: falls over and pins
+        from_xfr_mock.side_effect = [DNSException, self.forward_zonefile]
+        with patch('dns.query.xfr') as xfr_mock:
+            got = Zone('unit.tests.', [])
+            source.populate(got)
+        self.assertEqual(23, len(got.records))
+        self.assertEqual('192.0.2.2', source.host)
+        self.assertTrue(source._host_pinned)
+        self.assertEqual(
+            [('192.0.2.1',), ('192.0.2.2',)],
+            [c.args[:1] for c in xfr_mock.call_args_list],
+        )
+
+        # already pinned: only the winning host is tried again
+        from_xfr_mock.reset_mock(side_effect=True)
+        from_xfr_mock.side_effect = [self.forward_zonefile]
+        with patch('dns.query.xfr') as xfr_mock:
+            got = Zone('unit.tests.', [])
+            source.populate(got)
+        xfr_mock.assert_called_once()
+        self.assertEqual('192.0.2.2', xfr_mock.call_args.args[0])
+
+        # pinned host now fails: no fallback to the other candidate, fails
+        from_xfr_mock.side_effect = [DNSException]
+        with patch('dns.query.xfr'):
+            with self.assertRaises(AxfrSourceZoneTransferFailed) as ctx:
+                source.populate(Zone('unit.tests.', []))
+        self.assertEqual(
+            'Unable to Perform Zone Transfer for unit.tests.',
+            str(ctx.exception).split(':', 1)[0],
+        )
+        self.assertEqual('192.0.2.2', source.host)
 
     @patch('dns.zone.from_xfr')
     def test_populate_reverse(self, from_xfr_mock):
@@ -714,6 +758,8 @@ class TestRfc2136Provider(TestCase):
     def test_host_ip(self):
         provider = Rfc2136Provider('test', '192.0.2.1')
         self.assertEqual('192.0.2.1', provider.host)
+        self.assertEqual(['192.0.2.1'], provider.hosts)
+        self.assertFalse(provider._host_pinned)
 
     def test_provider_configuration(self):
         # test configuration inherits functionality from the base provider
@@ -728,14 +774,22 @@ class TestRfc2136Provider(TestCase):
 
     @patch('socket.getaddrinfo')
     def test_host_dns(self, resolve_mock):
-        host, ipv4, ipv6 = 'axfr.unit.tests.', '192.0.2.2', '2001:db8::1'
+        host, ipv4, ipv4b, ipv6 = (
+            'axfr.unit.tests.',
+            '192.0.2.2',
+            '192.0.2.3',
+            '2001:db8::1',
+        )
 
-        # Query success IPv4
+        # Query success IPv4, multiple addresses, socktype duplicates deduped
         resolve_mock.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', (ipv4, 0))
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', (ipv4, 0)),
+            (socket.AF_INET, socket.SOCK_DGRAM, 17, '', (ipv4, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', (ipv4b, 0)),
         ]
         provider = Rfc2136Provider('test', host)
         self.assertEqual(ipv4, provider.host)
+        self.assertEqual([ipv4, ipv4b], provider.hosts)
 
         # Query success IPv6
         resolve_mock.reset_mock()
@@ -744,12 +798,54 @@ class TestRfc2136Provider(TestCase):
         ]
         provider = Rfc2136Provider('test', host, ipv6=True)
         self.assertEqual(ipv6, provider.host)
+        self.assertEqual([ipv6], provider.hosts)
 
         # Query failure
         resolve_mock.reset_mock()
         resolve_mock.side_effect = OSError
         with self.assertRaises(AxfrSourceZoneTransferFailed):
             provider = Rfc2136Provider('test', host)
+
+    def test_with_host(self):
+        provider = Rfc2136Provider('test', '192.0.2.1')
+        provider.hosts = ['192.0.2.1', '192.0.2.2']
+        provider.host = '192.0.2.1'
+
+        # first candidate works: used as-is, pinned, called once
+        op = Mock(return_value='ok')
+        self.assertEqual('ok', provider._with_host('test', op))
+        op.assert_called_once_with('192.0.2.1')
+        self.assertEqual('192.0.2.1', provider.host)
+        self.assertTrue(provider._host_pinned)
+
+        # pinned: a later failure is not retried against the other candidate
+        op = Mock(side_effect=DNSException('boom'))
+        with self.assertRaises(DNSException):
+            provider._with_host('test', op)
+        op.assert_called_once_with('192.0.2.1')
+        self.assertEqual('192.0.2.1', provider.host)
+
+        # not yet pinned: first raises DNSException, second (OSError) works
+        provider._host_pinned = False
+        provider.host = '192.0.2.1'
+        op = Mock(side_effect=[DNSException('boom'), 'ok'])
+        self.assertEqual('ok', provider._with_host('test', op))
+        self.assertEqual(
+            [call('192.0.2.1'), call('192.0.2.2')], op.call_args_list
+        )
+        self.assertEqual('192.0.2.2', provider.host)
+        self.assertTrue(provider._host_pinned)
+
+        # not yet pinned: every candidate fails, last error propagates,
+        # nothing gets pinned
+        provider._host_pinned = False
+        provider.host = '192.0.2.1'
+        err = OSError('unreachable')
+        op = Mock(side_effect=[DNSException('boom'), err])
+        with self.assertRaises(OSError) as ctx:
+            provider._with_host('test', op)
+        self.assertIs(err, ctx.exception)
+        self.assertFalse(provider._host_pinned)
 
     def test_auth(self):
         provider = Rfc2136Provider('test', '127.0.0.1')
@@ -848,3 +944,48 @@ class TestRfc2136Provider(TestCase):
         delete_mock.assert_called_with('a.unit.tests.', 'A', '2.3.4.5')
         add_mock.assert_not_called()
         replace_mock.assert_not_called()
+
+    @patch('dns.query.tcp')
+    @patch('octodns_bind.AxfrPopulate.zone_records')
+    def test_apply_failover(self, zone_records_mock, dns_query_tcp_mock):
+        provider = Rfc2136Provider('test', '192.0.2.1')
+        provider.hosts = ['192.0.2.1', '192.0.2.2']
+
+        desired = Zone('unit.tests.', [])
+        record = Record.new(
+            desired, 'a', {'type': 'A', 'ttl': 42, 'value': '1.2.3.4'}
+        )
+        desired.add_record(record)
+
+        # populate/plan against the first candidate pins it
+        zone_records_mock.side_effect = [[]]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+
+        # the pinned host's first apply attempt times out, falls back to the
+        # other candidate and pins it in turn
+        noerror = dns.message.Message()
+        dns_query_tcp_mock.side_effect = [DNSException('timed out'), noerror]
+        provider.apply(plan)
+        self.assertEqual(2, dns_query_tcp_mock.call_count)
+        self.assertEqual(
+            '192.0.2.1', dns_query_tcp_mock.call_args_list[0].args[1]
+        )
+        self.assertEqual(
+            '192.0.2.2', dns_query_tcp_mock.call_args_list[1].args[1]
+        )
+        self.assertEqual('192.0.2.2', provider.host)
+
+        # every candidate fails: raises rather than looping forever
+        zone_records_mock.side_effect = [[]]
+        plan = provider.plan(desired)
+        provider.hosts = ['192.0.2.1', '192.0.2.2']
+        provider._host_pinned = False
+        dns_query_tcp_mock.reset_mock(side_effect=True)
+        dns_query_tcp_mock.side_effect = [
+            DNSException('timed out'),
+            DNSException('timed out'),
+        ]
+        with self.assertRaises(Rfc2136ProviderUpdateFailed):
+            provider.apply(plan)
+        self.assertFalse(provider._host_pinned)
