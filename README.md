@@ -61,7 +61,10 @@ A source that support the AXFR protocol
 providers:
   axfr:
       class: octodns_bind.AxfrSource
-      # The address of nameserver to perform zone transfer against
+      # The address of nameserver to perform zone transfer against. If this
+      # resolves to multiple addresses (of the family selected by `ipv6`
+      # below) each is tried in turn until one succeeds; that address is then
+      # used for the rest of the run.
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53
@@ -96,7 +99,10 @@ providers:
   rfc2136:
       # also available as octodns_bind.BindProvider
       class: octodns_bind.Rfc2136Provider
-      # The address of nameserver to perform zone transfer against
+      # The address of nameserver to perform zone transfer against. If this
+      # resolves to multiple addresses (of the family selected by `ipv6`
+      # below) each is tried in turn until one succeeds; that address is then
+      # used for the rest of the run.
       host: ns1.example.com
       # The port that the nameserver is listening on. Optional. Default: 53
       port: 53

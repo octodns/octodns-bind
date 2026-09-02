@@ -8,6 +8,7 @@ from logging import getLogger
 from os import listdir, makedirs
 from os.path import exists, isdir, join
 from string import Template
+from threading import Lock
 
 import dns.name
 import dns.query
@@ -386,8 +387,11 @@ class AxfrSourceException(Exception):
 
 
 class AxfrSourceZoneTransferFailed(AxfrSourceException):
-    def __init__(self, err):
-        super().__init__(f'Unable to Perform Zone Transfer: {err}')
+    def __init__(self, err, zone=None):
+        msg = 'Unable to Perform Zone Transfer'
+        if zone is not None:
+            msg += f' for {zone}'
+        super().__init__(f'{msg}: {err}')
 
 
 class AxfrPopulate(RfcPopulate):
@@ -406,19 +410,14 @@ class AxfrPopulate(RfcPopulate):
         **kwargs,
     ):
         self.log = getLogger(f'{self.__class__.__name__}[{id}]')
-        self.log.debug(
-            '__init__: id=%s, host=%s, port=%d, ipv6=%s, timeout=%d, key_name=%s, key_secret=%s, key_algorithm=%s',
-            id,
-            host,
-            port,
-            ipv6,
-            timeout,
-            key_name,
-            key_secret is not None,
-            key_algorithm is not None,
-        )
         super().__init__(id, *args, **kwargs)
-        self.host = self._host(host, ipv6)
+        self.hosts = self._hosts(host, ipv6)
+        # the address currently in use; once an operation has succeeded
+        # against a candidate, that candidate is pinned for the rest of the
+        # run rather than failed over again on a later error
+        self.host = self.hosts[0]
+        self._host_pinned = False
+        self._host_lock = Lock()
         self.port = int(port)
         self.ipv6 = ipv6
         self.timeout = float(timeout)
@@ -426,23 +425,73 @@ class AxfrPopulate(RfcPopulate):
         self.key_secret = key_secret
         self.key_algorithm = key_algorithm
         self.update_batch_size = update_batch_size
+        self.log.debug(
+            '__init__: id=%s, host=%s, hosts=%s, port=%d, ipv6=%s, timeout=%d, key_name=%s, key_secret=%s, key_algorithm=%s',
+            id,
+            host,
+            self.hosts,
+            port,
+            ipv6,
+            timeout,
+            key_name,
+            key_secret is not None,
+            key_algorithm is not None,
+        )
 
-    def _host(self, host, ipv6):
-        h = host
+    def _hosts(self, host, ipv6):
         try:
             # Determine if IPv4/IPv6 address
             dns.inet.af_for_address(host)
+            return [host]
         except ValueError:
-            address_family = socket.AF_INET
-            if ipv6:
-                address_family = socket.AF_INET6
+            pass
 
-            try:
-                h = socket.getaddrinfo(host, None, address_family)[0][4][0]
-            except OSError as err:
-                raise AxfrSourceZoneTransferFailed(err)
+        address_family = socket.AF_INET
+        if ipv6:
+            address_family = socket.AF_INET6
 
-        return h
+        try:
+            infos = socket.getaddrinfo(host, None, address_family)
+        except OSError as err:
+            raise AxfrSourceZoneTransferFailed(err)
+
+        # getaddrinfo returns an entry per socktype/proto combination, so the
+        # same address can repeat; dedupe while preserving resolution order
+        return list(dict.fromkeys(info[4][0] for info in infos))
+
+    def _with_host(self, what, op):
+        '''
+        Run op against a working address, pinning the first one that
+        succeeds for the remainder of the run. Once pinned, a failure is not
+        retried against another address: switching servers mid-run risks
+        planning against one copy of a zone and applying against another.
+        '''
+        with self._host_lock:
+            if not self._host_pinned:
+                last_err = None
+                for candidate in self.hosts:
+                    try:
+                        ret = op(candidate)
+                    except (DNSException, OSError) as err:
+                        self.log.warning(
+                            '%s: host=%s failed with "%s"', what, candidate, err
+                        )
+                        last_err = err
+                        continue
+                    if candidate != self.host:
+                        self.log.info(
+                            '%s: falling back to host=%s for the rest of this run',
+                            what,
+                            candidate,
+                        )
+                    self.host = candidate
+                    self._host_pinned = True
+                    return ret
+                raise last_err
+            host = self.host
+
+        # pinned, run outside the lock so concurrent zones aren't serialized
+        return op(host)
 
     def _auth_params(self):
         params = {}
@@ -460,10 +509,11 @@ class AxfrPopulate(RfcPopulate):
 
     def zone_records(self, zone, target):
         auth_params = self._auth_params()
-        try:
-            z = dns.zone.from_xfr(
+
+        def xfr(host):
+            return dns.zone.from_xfr(
                 dns.query.xfr(
-                    self.host,
+                    host,
                     zone.name,
                     port=self.port,
                     timeout=self.timeout,
@@ -473,8 +523,11 @@ class AxfrPopulate(RfcPopulate):
                 ),
                 relativize=False,
             )
-        except DNSException as err:
-            raise AxfrSourceZoneTransferFailed(err) from None
+
+        try:
+            z = self._with_host('zone_records', xfr)
+        except (DNSException, OSError) as err:
+            raise AxfrSourceZoneTransferFailed(err, zone.decoded_name) from None
 
         records = []
 
@@ -534,9 +587,17 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
             self.log.debug(
                 '_apply: zone=%s, num_records=%d', desired.name, len(batch)
             )
-            r: dns.message.Message = dns.query.tcp(
-                update, self.host, port=self.port, timeout=self.timeout
-            )
+
+            def send(host):
+                return dns.query.tcp(
+                    update, host, port=self.port, timeout=self.timeout
+                )
+
+            try:
+                r: dns.message.Message = self._with_host('_apply', send)
+            except (DNSException, OSError) as err:
+                raise Rfc2136ProviderUpdateFailed(err) from None
+
             if r.rcode() != dns.rcode.NOERROR:
                 raise Rfc2136ProviderUpdateFailed(dns.rcode.to_text(r.rcode()))
 
