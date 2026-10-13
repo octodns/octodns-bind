@@ -64,7 +64,7 @@ class TestAxfrSource(TestCase):
         from_xfr_mock.side_effect = [self.forward_zonefile, DNSException]
 
         self.source.populate(got)
-        self.assertEqual(23, len(got.records))
+        self.assertEqual(24, len(got.records))
 
         with self.assertRaises(AxfrSourceZoneTransferFailed) as ctx:
             zone = Zone('unit.tests.', [])
@@ -90,7 +90,7 @@ class TestAxfrSource(TestCase):
         with patch('dns.query.xfr') as xfr_mock:
             got = Zone('unit.tests.', [])
             source.populate(got)
-        self.assertEqual(23, len(got.records))
+        self.assertEqual(24, len(got.records))
         self.assertEqual('192.0.2.2', source.host)
         self.assertTrue(source._host_pinned)
         self.assertEqual(
@@ -169,18 +169,18 @@ class TestZoneFileSource(TestCase):
         # Load zonefiles without a specified file extension
         valid = Zone('unit.tests.', [])
         source.populate(valid)
-        self.assertEqual(23, len(valid.records))
+        self.assertEqual(24, len(valid.records))
 
     def test_populate(self):
         # Valid zone file in directory
         valid = Zone('unit.tests.', [])
         self.source.populate(valid)
-        self.assertEqual(23, len(valid.records))
+        self.assertEqual(24, len(valid.records))
 
         # 2nd populate does not read file again
         again = Zone('unit.tests.', [])
         self.source.populate(again)
-        self.assertEqual(23, len(again.records))
+        self.assertEqual(24, len(again.records))
 
         # bust the cache
         del self.source._zone_records[valid.name]
@@ -254,7 +254,7 @@ class TestZoneFileSource(TestCase):
         )
         zone = Zone('unit.tests.', [])
         exists = opt_in_provider.populate(zone, target=True)
-        self.assertEqual(23, len(zone.records))
+        self.assertEqual(24, len(zone.records))
         self.assertTrue(exists)
         self.assertTrue(opt_in_provider.zone_exists(zone, target=True))
 
@@ -294,6 +294,39 @@ class TestZoneFileSource(TestCase):
                 self.assertIn(
                     f'longtxt       42 IN TXT      {expected_split}', content
                 )
+
+    def test_uri_record(self):
+        # URI rdata (RFC 7553) is read from a zone file intact
+        valid = Zone('unit.tests.', [])
+        self.source.populate(valid)
+        uri = next(r for r in valid.records if r._type == 'URI')
+        self.assertEqual('_ftp._tcp', uri.name)
+        self.assertEqual(300, uri.ttl)
+        self.assertEqual(
+            [(10, 1, 'ftp://ftp1.example.com/public')],
+            [(v.priority, v.weight, v.target) for v in uri.values],
+        )
+
+        # and written back out as a quoted target that re-parses the same
+        with TemporaryDirectory() as td:
+            provider = ZoneFileProvider('target', td.dirname)
+            changes = [Create(r) for r in valid.records]
+            plan = Plan(Zone(valid.name, []), valid, changes, True)
+            provider._apply(plan)
+
+            with open(join(td.dirname, 'unit.tests.')) as fh:
+                self.assertRegex(
+                    fh.read(),
+                    r'\n_ftp\._tcp +300 IN URI +10 1 '
+                    r'"ftp://ftp1\.example\.com/public"\n',
+                )
+
+            again = Zone('unit.tests.', [])
+            ZoneFileSource('again', td.dirname).populate(again)
+            self.assertEqual(
+                uri.values,
+                next(r for r in again.records if r._type == 'URI').values,
+            )
 
     @patch('octodns_bind.ZoneFileProvider._serial')
     def test_apply(self, serial_mock):

@@ -201,7 +201,7 @@ providers:
 
 #### Records
 
-A, AAAA, CAA, CNAME, LOC, MX, NS, PTR, SPF, SRV, SSHFP, TLSA, TXT
+A, AAAA, CAA, CNAME, LOC, MX, NS, PTR, SPF, SRV, SSHFP, TLSA, TXT, URI (URI requires octoDNS core >= 1.13)
 
 #### Dynamic
 
