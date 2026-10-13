@@ -62,6 +62,9 @@ class RfcPopulate:
             'TXT',
         )
     )
+    # URI is registered in octodns core 1.17.0+, after our minimum supported
+    # version, so only claim it when it's available
+    SUPPORTS |= {'URI'} & Record.registered_types().keys()
 
     def populate(self, zone, target=False, lenient=False):
         self.log.debug(

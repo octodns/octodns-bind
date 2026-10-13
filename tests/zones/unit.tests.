@@ -70,3 +70,6 @@ sub               IN DS 15288 5  2 CE0EB9E59EE1DE2C681A330E3A7C08376F28602CDF990
 @                 IN HTTPS 0 example.com.
 sub               IN HTTPS 1 . ipv4hint=203.0.113.1 alpn="h3,h2"
 _8765._baz.api 300 IN SVCB 0 svc4-baz.unit.tests.
+
+; URI Records
+_ftp._tcp      300 IN URI 10 1 "ftp://ftp1.example.com/public"
