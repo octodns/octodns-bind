@@ -569,6 +569,19 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
 
     SUPPORTS_ROOT_NS = True
 
+    def _update_root_ns(self, update, change):
+        # RFC 2136 3.4.2.4: a primary ignores a request to delete all the NS
+        # records at the zone apex, so replace() (delete the RRset, then add)
+        # only ever adds at the apex and anything being removed stays put.
+        # Remove those values one by one instead, and add first so the apex
+        # NS RRset is never empty while the update is being processed.
+        name, ttl, _type, rdatas = change.new.rrs
+        _, _, _, existing_rdatas = change.existing.rrs
+        update.add(name, ttl, _type, *rdatas)
+        removed = [r for r in existing_rdatas if r not in rdatas]
+        if removed:
+            update.delete(name, _type, *removed)
+
     def _apply(self, plan):
         desired = plan.desired
         auth_params = self._auth_params()
@@ -583,7 +596,10 @@ class Rfc2136Provider(AxfrPopulate, BaseProvider):
                 if isinstance(change, Create):
                     update.add(name, ttl, _type, *rdatas)
                 elif isinstance(change, Update):
-                    update.replace(name, ttl, _type, *rdatas)
+                    if record.name == '' and _type == 'NS':
+                        self._update_root_ns(update, change)
+                    else:
+                        update.replace(name, ttl, _type, *rdatas)
                 else:  # isinstance(change, Delete):
                     update.delete(name, _type, *rdatas)
 
