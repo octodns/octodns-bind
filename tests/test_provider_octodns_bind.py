@@ -978,6 +978,70 @@ class TestRfc2136Provider(TestCase):
         add_mock.assert_not_called()
         replace_mock.assert_not_called()
 
+    @patch('dns.update.Update.delete', autospec=True)
+    @patch('dns.update.Update.replace', autospec=True)
+    @patch('dns.update.Update.add', autospec=True)
+    @patch('dns.query.tcp')
+    @patch('octodns_bind.AxfrPopulate.zone_records')
+    def test_apply_root_ns_update(
+        self,
+        zone_records_mock,
+        dns_query_tcp_mock,
+        add_mock,
+        replace_mock,
+        delete_mock,
+    ):
+        # RFC 2136 3.4.2.4: a primary ignores deleting the whole apex NS
+        # RRset, so an apex NS update must add first and then delete only the
+        # values that are going away, never replace() the RRset.
+        provider = Rfc2136Provider('test', '127.0.0.1')
+        dns_query_tcp_mock.return_value = dns.message.Message()
+
+        calls = []
+        add_mock.side_effect = lambda _, *a: calls.append(('add',) + a)
+        replace_mock.side_effect = lambda _, *a: calls.append(('replace',) + a)
+        delete_mock.side_effect = lambda _, *a: calls.append(('delete',) + a)
+
+        desired = Zone('unit.tests.', [])
+        desired.add_record(
+            Record.new(
+                desired,
+                '',
+                {
+                    'type': 'NS',
+                    'ttl': 3600,
+                    'values': ['ns2.unit.tests.', 'ns3.unit.tests.'],
+                },
+            )
+        )
+        add = ('add', 'unit.tests.', 3600, 'NS')
+        add += ('ns2.unit.tests.', 'ns3.unit.tests.')
+
+        # ns1 replaced by ns3: add the new set, then delete only ns1
+        zone_records_mock.side_effect = [
+            [
+                Rr('unit.tests.', 'NS', 3600, 'ns1.unit.tests.'),
+                Rr('unit.tests.', 'NS', 3600, 'ns2.unit.tests.'),
+            ]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        provider.apply(plan)
+        dns_query_tcp_mock.assert_called_once()
+        self.assertEqual(
+            [add, ('delete', 'unit.tests.', 'NS', 'ns1.unit.tests.')], calls
+        )
+
+        # a pure addition has nothing to delete
+        calls.clear()
+        zone_records_mock.side_effect = [
+            [Rr('unit.tests.', 'NS', 3600, 'ns2.unit.tests.')]
+        ]
+        plan = provider.plan(desired)
+        self.assertTrue(plan)
+        provider.apply(plan)
+        self.assertEqual([add], calls)
+
     @patch('dns.query.tcp')
     @patch('dns.zone.from_xfr')
     def test_apply_uses_pinned_host(self, from_xfr_mock, dns_query_tcp_mock):
